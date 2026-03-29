@@ -1,0 +1,906 @@
+
+
+===== PAGE 1 =====
+
+FRONTEND_GUIDELINES.md 
+FRONTEND_GUIDELINES.md 
+1. Document Purpose 
+This document defines the complete visual system and frontend interaction rules for 
+ParkingSol. Its purpose is to eliminate design ambiguity before implementation starts so 
+the frontend can be built consistently, beautifully, and fast. This is not a mood board. 
+This is the canonical UI contract for the MVP. 
+ParkingSol is an operational parking intelligence platform. Its interface must feel 
+premium, modern, and memorable, but it must also remain readable under pressure. 
+Users are not opening the app to admire visuals alone. They are opening it to answer 
+urgent operational questions: 
+• What just happened? 
+• Is the vehicle paid or unpaid? 
+• Is there an active violation? 
+• Does this require action now? 
+• Is the system healthy? 
+• What changed? 
+• Who needs to be notified? 
+That means the frontend must balance two things at once: 
+1. A distinct visual identity that feels premium, polished, and impressive. 
+2. A decision-first workflow where operators can read and act instantly. 
+This design system is therefore based on the following principles: 
+• Warm, intelligent, premium, and modern. 
+• Calm background, sharp text, clear hierarchy. 
+• Elegant motion, never chaotic motion. 
+• Glassmorphism used for depth and emphasis, not decoration overload. 
+• Cursor-reactive effects that feel alive, but never distract from parking operations. 
+• Beige and brown as the base brand atmosphere. 
+• Ginger as the active accent color. 
+• High readability for every critical surface. 
+• Strong consistency across dashboard, events, violations, rules, and settings. 
+
+===== PAGE 2 =====
+
+ParkingSol’s UI should feel like a premium control room rather than a generic admin 
+template. It should feel closer to a thoughtfully crafted product than a bootstrap 
+dashboard. The atmosphere should communicate calm confidence, operational 
+precision, and high-end modern software. 
+ 
+2. Core Visual Direction 
+2.1 Brand feeling 
+The intended emotional signature of ParkingSol is: 
+• Warm 
+• intelligent 
+• premium 
+• composed 
+• soft but precise 
+• modern without feeling cold 
+• animated without being noisy 
+• luxurious but still operational 
+The closest descriptive style is: 
+Claude-inspired warmth + premium glassmorphism + ginger motion 
+accents + parking operations clarity 
+This means: 
+• Backgrounds should be warm beige, not pure white. 
+• Text should be dark brown, not true black. 
+• Cards should feel layered and translucent. 
+• Hover states should glow gently in amber/ginger tones. 
+• Cursor movement should create subtle life across the interface. 
+• Panels should float lightly above the background with frosted depth. 
+• Alerts should remain immediately scannable. 
+2.2 Product personality 
+ParkingSol is not: 
+• cyberpunk 
+• neon blue SaaS 
+
+===== PAGE 3 =====
+
+• grayscale enterprise 
+• playful toy-like UI 
+• flashy motion-heavy portfolio design 
+ParkingSol is: 
+• warm 
+• precise 
+• premium 
+• softly animated 
+• highly readable 
+• operationally trustworthy 
+2.3 Visual hierarchy philosophy 
+The visual hierarchy must always emphasize: 
+1. Critical status. 
+2. Current action needed. 
+3. Current page purpose. 
+4. Recent updates. 
+5. Supporting context. 
+Beauty must never reduce status clarity. The app can be luxurious, but operators must 
+still instantly distinguish: 
+• paid 
+• unpaid 
+• warning 
+• error 
+• resolved 
+• test mode 
+• production mode 
+ 
+3. Design Principles 
+3.1 Warm-first interface 
+The entire UI should avoid sterile white backgrounds and harsh monochrome contrast. 
+Instead, it should use layered warm neutrals: 
+
+===== PAGE 4 =====
+
+• parchment beige 
+• cream 
+• oat 
+• sand 
+• almond 
+• cocoa 
+• dark brown 
+This creates a more premium and differentiated experience. 
+3.2 Glassmorphism with discipline 
+Glassmorphism is part of ParkingSol’s identity, but it must be controlled. 
+Glassmorphism depends primarily on opacity and background blur, and stronger blur is 
+especially helpful on visually busy backgrounds because it preserves focus and 
+readability. Therefore, ParkingSol should use frosted layers with enough blur to separate 
+content from the background instead of using nearly transparent panels that make text 
+harder to read.  
+3.3 Cursor-reactive interface 
+The product should feel alive when the cursor moves. However, motion should be subtle 
+and should enrich the interface rather than turning every page into an animation demo. 
+Allowed cursor-reactive effects: 
+• soft radial highlight that follows cursor on hero or dashboard surfaces 
+• micro-parallax on large decorative background orbs 
+• hover bloom on cards 
+• gentle gradient shift on buttons 
+• magnetic hover on primary CTA buttons 
+• row glow on interactive tables 
+Disallowed cursor-reactive effects: 
+• large lagging blobs that cover content 
+• dramatic 3D rotation on operational tables 
+• wobble, bounce, spring overload 
+• forced cursor trails 
+• effects that cause text blur or pointer distraction 
+• flashy motion on every component at once 
+
+===== PAGE 5 =====
+
+3.4 Motion should support comprehension 
+Motion must answer a question: 
+• What changed? 
+• What is interactive? 
+• What just updated? 
+• Where did this panel come from? 
+• What state did this become? 
+If motion does not serve one of those purposes, it should be removed. 
+3.5 Accessibility is required 
+Normal body text must meet a contrast ratio of at least 4.5:1, large text must meet at 
+least 3:1, and UI components and visual indicators should meet at least 3:1 against 
+adjacent colors. The interface must also respect prefers-reduced-motion, which is 
+used to detect whether a user has enabled reduced motion settings on their device. 
+This means: 
+• beige can be beautiful, but not washed out 
+• brown can be elegant, but not muddy 
+• ginger accents can glow, but not obscure labels 
+• motion can be expressive, but must quiet down when the user asks for less 
+motion 
+ 
+4. Locked Color System 
+This is the official ParkingSol color palette. These values are the source of truth. 
+4.1 Primary neutrals 
+Background tokens 
+• bg-canvas: #F5EBDD 
+• bg-canvas-alt: #EFE2D0 
+• bg-surface: rgba(255, 248, 240, 0.58) 
+• bg-surface-strong: rgba(255, 248, 240, 0.78) 
+• bg-surface-solid: #FFF7ED 
+• bg-panel: rgba(250, 240, 229, 0.72) 
+
+===== PAGE 6 =====
+
+• bg-elevated: rgba(255, 250, 245, 0.82) 
+• bg-sidebar: rgba(244, 232, 218, 0.82) 
+• bg-overlay: rgba(54, 36, 22, 0.24) 
+Text tokens 
+• text-primary: #3A2415 
+• text-secondary: #5A4332 
+• text-tertiary: #7B6658 
+• text-disabled: #AA9688 
+• text-on-accent: #FFF8F2 
+Border tokens 
+• border-soft: rgba(104, 73, 49, 0.10) 
+• border-default: rgba(104, 73, 49, 0.16) 
+• border-strong: rgba(104, 73, 49, 0.26) 
+• border-glass: rgba(255, 255, 255, 0.34) 
+4.2 Accent system 
+Ginger brand accents 
+• accent-ginger-50: #FFF1E6 
+• accent-ginger-100: #FDE0C8 
+• accent-ginger-200: #F8C79D 
+• accent-ginger-300: #F3A96F 
+• accent-ginger-400: #EC8748 
+• accent-ginger-500: #E36C2B 
+• accent-ginger-600: #C85A21 
+• accent-ginger-700: #A4491B 
+Warm gold support accents 
+• accent-gold-100: #FBE9B7 
+• accent-gold-300: #E7BE59 
+• accent-gold-500: #C99525 
+
+===== PAGE 7 =====
+
+Cocoa depth accents 
+• accent-cocoa-300: #8A6752 
+• accent-cocoa-500: #6C4B37 
+• accent-cocoa-700: #4D311F 
+4.3 Semantic status colors 
+These must coexist with the beige/brown identity while remaining operationally 
+distinct. 
+Success / paid 
+• success-bg: #E8F6EE 
+• success-border: #8CC9A3 
+• success-text: #23543A 
+• success-accent: #2E8B57 
+Warning / pending 
+• warning-bg: #FFF4DB 
+• warning-border: #E9C56A 
+• warning-text: #7A5600 
+• warning-accent: #D99A00 
+Danger / unpaid / violation 
+• danger-bg: #FDE8E6 
+• danger-border: #E7A39D 
+• danger-text: #7B231D 
+• danger-accent: #C64537 
+Info / system 
+• info-bg: #E9F2F7 
+• info-border: #9DC1D8 
+• info-text: #1F4C68 
+• info-accent: #2E6F95 
+
+===== PAGE 8 =====
+
+Test mode 
+• test-bg: #F7EFFF 
+• test-border: #CBB5E8 
+• test-text: #5B3E7A 
+• test-accent: #8B5CF6 
+Production mode 
+• prod-bg: #EAF7EE 
+• prod-border: #92D1A6 
+• prod-text: #1F5A36 
+• prod-accent: #22A35A 
+4.4 Color usage rules 
+• Beige backgrounds are the default foundation. 
+• Brown text is the default content color. 
+• Ginger is the default active accent and primary highlight. 
+• Red is reserved for non-compliance, destructive actions, and critical failures. 
+• Yellow/gold is reserved for pending states and attention cues. 
+• Green is reserved for compliant/paid/resolved states. 
+• Blue should be minimal and mostly system-status specific. 
+• Purple is reserved for test/staging context or advanced support tools. 
+ 
+5. Background System 
+5.1 Base canvas 
+The app canvas should not be flat. It should use a layered background consisting of: 
+• base beige fill 
+• faint warm radial gradients 
+• extremely subtle noise texture 
+• soft ambient blurs in corners 
+Recommended background composition: 
+• base layer: #F5EBDD 
+
+===== PAGE 9 =====
+
+• overlay gradient 1: soft cream radial top left 
+• overlay gradient 2: warm ginger haze bottom right 
+• overlay gradient 3: cocoa-tinted shadow at edges 
+• optional grain texture at 2 to 4 percent opacity 
+5.2 Decorative orbs 
+Allowed decorative background elements: 
+• giant blurred warm orb top left 
+• ginger glow bottom right 
+• sand-colored haze behind header 
+• low-opacity cursor-responsive light field 
+These must stay behind content and never reduce text contrast. 
+5.3 Surface blur requirements 
+For true glassmorphism, ParkingSol surfaces should generally use: 
+• backdrop-filter: blur(16px) minimum on small glass cards 
+• backdrop-filter: blur(24px) on modals and drawers 
+• backdrop-filter: blur(28px) on hero/stat surfaces if background is visually 
+active 
+Because glass panels become less readable over busy or animated backgrounds, blur 
+should increase as background complexity increases.  
+ 
+6. Typography System 
+6.1 Font stack 
+ParkingSol should use a premium, clean, editorial-leaning UI stack: 
+Primary font: Inter 
+Fallback: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 
+"Segoe UI", sans-serif 
+Optional heading accent font if approved later: 
+• Instrument Serif for marketing-like headers only 
+
+===== PAGE 10 =====
+
+For MVP dashboard screens, use Inter only for consistency and performance. 
+6.2 Typography tone 
+Typography should feel: 
+• crisp 
+• warm 
+• confident 
+• spacious 
+• not overly geometric 
+• not playful 
+• not overly condensed 
+6.3 Type scale 
+• Display XL: 48 / 56 / 700 
+• Display L: 40 / 48 / 700 
+• H1: 32 / 40 / 700 
+• H2: 24 / 32 / 700 
+• H3: 20 / 28 / 650 
+• H4: 18 / 26 / 650 
+• Body L: 18 / 30 / 400 
+• Body M: 16 / 26 / 400 
+• Body S: 14 / 22 / 400 
+• Label L: 14 / 20 / 600 
+• Label M: 13 / 18 / 600 
+• Label S: 12 / 16 / 600 
+• Mono data: 13 / 20 / 500 
+6.4 Typography rules 
+• Page titles use H1 or H2 depending on density. 
+• Section titles use H3. 
+• Table headers use Label M. 
+• Metadata uses Body S or Label S. 
+• IDs, plate numbers, and event codes may use mono data style where clarity 
+matters. 
+• Never use pure black text. 
+• Never use ultra-light font weights. 
+
+===== PAGE 11 =====
+
+6.5 Numeric emphasis 
+For dashboard KPIs: 
+• use tabular numerals where possible 
+• size 28 to 36 px 
+• weight 700 
+• tracking slightly negative 
+• warm brown text or semantic color when appropriate 
+ 
+7. Spacing, Layout, and Grid 
+7.1 Spacing scale 
+This is the locked spacing system: 
+• 4 px 
+• 8 px 
+• 12 px 
+• 16 px 
+• 20 px 
+• 24 px 
+• 32 px 
+• 40 px 
+• 48 px 
+• 64 px 
+• 80 px 
+These should be mapped to spacing tokens, for example: 
+• space-1 = 4 
+• space-2 = 8 
+• space-3 = 12 
+• space-4 = 16 
+• space-5 = 20 
+• space-6 = 24 
+• space-8 = 32 
+• space-10 = 40 
+• space-12 = 48 
+
+===== PAGE 12 =====
+
+• space-16 = 64 
+• space-20 = 80 
+7.2 Layout grid 
+Desktop layout: 
+• sidebar width: 280 px expanded, 88 px collapsed 
+• top bar height: 72 px 
+• page max width: 1600 px 
+• page horizontal padding: 32 px 
+• page vertical padding: 24 px 
+• card gap: 20 to 24 px 
+7.3 Content width rules 
+• Dense table pages may use full width. 
+• Settings/forms pages should cap content width around 960 px. 
+• Modals should stay between 480 and 720 px based on type. 
+• Drawers should be 420 to 520 px for detail views. 
+7.4 Section spacing rules 
+• Page title to first content block: 24 px 
+• Card header to body: 16 px 
+• Form field gap: 16 px 
+• Major section to next section: 32 px 
+• Dense metadata rows: 8 to 12 px 
+ 
+8. Radius, Borders, and Shadows 
+8.1 Radius system 
+• Small inputs/badges: 12 px 
+• Buttons: 14 px 
+• Cards: 20 px 
+• Large glass panels: 24 px 
+• Modals and drawers: 28 px 
+• Pills/status chips: 999 px 
+
+===== PAGE 13 =====
+
+8.2 Border rules 
+Glass surfaces need soft borders and subtle edge lighting. Use: 
+• outer border with low-opacity brown 
+• top/left edge highlight with translucent white 
+• slightly stronger border on hover or active state 
+8.3 Shadow system 
+Use soft layered shadows, not harsh dark drop shadows. 
+Shadow tokens 
+• shadow-soft: 0 4px 20px rgba(86, 55, 31, 0.08) 
+• shadow-card: 0 10px 30px rgba(86, 55, 31, 0.10) 
+• shadow-float: 0 16px 40px rgba(86, 55, 31, 0.14) 
+• shadow-modal: 0 24px 60px rgba(56, 36, 24, 0.18) 
+• shadow-ginger-glow: 0 0 0 1px rgba(227, 108, 43, 0.18), 0 10px 
+30px rgba(227, 108, 43, 0.18) 
+Shadows must feel creamy and diffuse, never sharp black. 
+ 
+9. Motion and Cursor Interaction System 
+9.1 Motion identity 
+Motion should feel: 
+• soft 
+• premium 
+• buttery 
+• intelligent 
+• ginger-lit 
+• restrained 
+Not: 
+• bouncy 
+• elastic everywhere 
+• over-springy 
+
+===== PAGE 14 =====
+
+• game-like 
+• distracting 
+9.2 Duration tokens 
+• micro: 120 ms 
+• fast: 180 ms 
+• standard: 240 ms 
+• medium: 320 ms 
+• slow: 480 ms 
+9.3 Easing tokens 
+• standard: cubic-bezier(0.22, 1, 0.36, 1) 
+• exit: cubic-bezier(0.4, 0, 1, 1) 
+• gentle: cubic-bezier(0.25, 0.8, 0.25, 1) 
+• hover: cubic-bezier(0.2, 0.8, 0.2, 1) 
+9.4 Cursor-reactive rules 
+ParkingSol should include subtle cursor response in these areas: 
+• dashboard hero stat panel 
+• glass cards 
+• primary CTA buttons 
+• navigation items 
+• table rows 
+• modal headers 
+Approved cursor effects: 
+• radial highlight follows cursor within large card 
+• background orb shifts 2 to 8 px maximum 
+• card border glow intensifies on hover 
+• button highlight tracks mouse center 
+• table row background softly brightens under hover 
+Hard limits: 
+• no component should rotate more than 1.5 degrees 
+• no parallax layer should move more than 8 px 
+
+===== PAGE 15 =====
+
+• no cursor effect should delay pointer feedback 
+• no essential data should move position in a way that harms readability 
+9.5 Reduced motion policy 
+If the user has reduced motion enabled, the interface must reduce or remove non-
+essential motion because prefers-reduced-motion exists specifically to detect when 
+users want motion minimized. In reduced-motion mode:  
+• remove parallax 
+• remove cursor-follow highlights 
+• shorten transitions 
+• replace moving entry animations with fade only 
+• remove scale pop on hover 
+• keep only essential state feedback 
+ 
+10. Glassmorphism Standards 
+10.1 Glass card formula 
+The standard ParkingSol glass card should use: 
+• warm translucent fill 
+• strong blur 
+• soft border 
+• gentle shadow 
+• top-edge sheen 
+• subtle internal highlight 
+Example visual formula: 
+• background: rgba(255, 248, 240, 0.58) 
+• border: 1px solid rgba(255,255,255,0.30) 
+• secondary border overlay: 1px solid rgba(104,73,49,0.10) 
+• blur: 20px 
+• shadow: soft layered brown shadow 
+• radius: 20px 
+
+===== PAGE 16 =====
+
+10.2 Where to use glass 
+Use glass on: 
+• dashboard metric cards 
+• top navigation shell 
+• sidebar shell 
+• modals 
+• drawers 
+• filter bars 
+• notification panels 
+• detail surfaces 
+Do not use strong glassmorphism on: 
+• dense data tables with lots of tiny text 
+• critical alert banners where solid contrast is more important 
+• tiny badges 
+• long-form text areas 
+10.3 Blur strategy 
+Since more blur improves readability on intricate backgrounds, ParkingSol should 
+prefer stronger blur over high transparency when using animated or gradient-heavy 
+backdrops. If a surface contains critical text or complex data, increase opacity and blur 
+rather than making the panel more transparent.  
+ 
+11. Core Component Library 
+11.1 Button 
+Types 
+• Primary 
+• Secondary 
+• Tertiary 
+• Destructive 
+• Ghost 
+• Icon button 
+
+===== PAGE 17 =====
+
+Primary button 
+• ginger gradient or solid ginger fill 
+• text-on-accent 
+• subtle glow on hover 
+• slight lift: 1 to 2 px translateY max 
+• cursor-aware highlight allowed 
+Secondary button 
+• frosted glass background 
+• brown text 
+• stronger border on hover 
+Destructive button 
+• warm red background 
+• no playful motion 
+• confirm intent clearly 
+Button rules 
+• height: 44 px default 
+• border radius: 14 px 
+• icon gap: 8 px 
+• focus ring required 
+• disabled state must reduce contrast but remain legible 
+11.2 Input fields 
+Standard field style 
+• soft warm solid or low-glass background 
+• 1 px border 
+• high-contrast label 
+• placeholder in muted cocoa 
+• focus ring in ginger glow 
+Sizes 
+• default height: 44 px 
+
+===== PAGE 18 =====
+
+• dense height: 40 px 
+• textarea min height: 120 px 
+Field rules 
+• labels always visible 
+• helper text optional 
+• error text in danger color 
+• icon support allowed 
+• avoid overly transparent inputs 
+11.3 Select / filter controls 
+• use pill-like glass control 
+• maintain clear selected state 
+• hover can brighten background slightly 
+• active state should use ginger border or fill tint 
+11.4 Card 
+Card variants: 
+• metric card 
+• detail card 
+• table card 
+• alert card 
+• settings card 
+All cards must have: 
+• consistent radius 
+• clear title zone 
+• optional action area 
+• predictable padding 
+• hover behavior only when clickable 
+11.5 Table 
+Tables are mission-critical for ParkingSol and must not become visually muddy. 
+
+===== PAGE 19 =====
+
+Table style 
+• warm solid/glass hybrid surface 
+• clear row dividers 
+• sticky header on long tables 
+• hover row highlight 
+• selected row state 
+• semantic badges inside cells 
+• compact but breathable spacing 
+Table row behavior 
+• hover: slightly brighter row with brown/ginger edge 
+• click: active outline or tinted background 
+• do not animate row height 
+• do not use excessive blur behind dense text 
+11.6 Badge / status chip 
+Use pill badges for: 
+• paid 
+• unpaid 
+• pending 
+• duplicate 
+• resolved 
+• test mode 
+• production mode 
+Rules: 
+• 28 to 32 px height 
+• medium label weight 
+• semantic fill plus semantic text 
+• icon optional for high-priority cases 
+11.7 Sidebar 
+The sidebar should feel like a premium frosted panel. 
+Rules: 
+
+===== PAGE 20 =====
+
+• beige glass shell 
+• active item highlighted with ginger tint 
+• active item may have soft inner glow 
+• icons in brown/cocoa 
+• section labels muted 
+• collapsed mode still readable via tooltips 
+11.8 Top bar 
+The top bar should be: 
+• sticky 
+• translucent glass 
+• softly bordered 
+• separated from content with ambient shadow 
+• contain search, notifications, environment badge, avatar 
+11.9 Modal 
+Modals must feel premium but not theatrical. 
+Rules: 
+• stronger blur than cards 
+• centered 
+• shadow-modal token 
+• radius 28 px 
+• max width based on purpose 
+• animated with fade + slight rise only 
+11.10 Drawer 
+Use right-side drawers for: 
+• event details preview 
+• violation quick review 
+• notification details 
+• vehicle quick context 
+Drawers should: 
+• slide in softly 
+• use warm glass surface 
+
+===== PAGE 21 =====
+
+• preserve main page context underneath 
+• support keyboard close 
+ 
+12. Page-Specific UI Guidance 
+12.1 Dashboard 
+The Dashboard should be the visual hero of the app. 
+Required visual features: 
+• large premium summary strip 
+• 4 to 6 metric cards 
+• live activity card 
+• unpaid attention card 
+• recent notifications card 
+• subtle cursor-responsive ambient light 
+The dashboard can use the richest motion in the app, but still must remain readable. 
+12.2 Live Events 
+This page should prioritize scan speed: 
+• cleaner, denser table 
+• less decorative animation 
+• crisp filters at top 
+• semantic state badges 
+• plate numbers visually prominent 
+12.3 Violations 
+Violations should feel urgent but controlled: 
+• unpaid cards or rows use warm red semantic accents 
+• open items are highly visible 
+• aging indicators should be readable 
+• actions should be obvious and safe 
+12.4 Vehicles 
+Vehicle detail should feel investigative: 
+
+===== PAGE 22 =====
+
+• prominent plate title 
+• status summary chips 
+• clean timeline 
+• linked event and violation cards 
+• use mono styling for IDs and timestamps where needed 
+12.5 Rules and Settings 
+These pages should be calmer and more form-focused: 
+• reduce decorative motion 
+• use stable panels 
+• prioritize clarity and form layout 
+• save buttons fixed or clearly placed 
+12.6 System Status 
+System Status should feel technical but still brand-consistent: 
+• use neutral info surfaces 
+• reserve blue mostly for system info 
+• errors should be immediately visible 
+• environment badge must be obvious 
+ 
+13. Interaction States 
+Every interactive component must define: 
+• default 
+• hover 
+• active 
+• focus-visible 
+• disabled 
+• loading 
+• error, if relevant 
+13.1 Hover 
+Hover should usually change: 
+• border brightness 
+
+===== PAGE 23 =====
+
+• subtle shadow 
+• slight background lift 
+• cursor-highlight if allowed 
+13.2 Focus 
+Every focusable element must show a visible focus ring. Since text and interface 
+components need sufficient contrast to remain perceivable, focus treatments must also 
+remain visibly distinct against the surrounding beige surfaces. 
+Recommended focus ring: 
+• 2 px outer ginger ring 
+• 2 px soft cream offset glow 
+13.3 Loading 
+Use: 
+• shimmer on cards/tables 
+• spinner only for small contained actions 
+• page-level skeletons instead of blank screens 
+13.4 Error 
+Error state must never rely on color alone. Since color contrast standards apply to 
+interface indicators as well as text, error states should include iconography, text labels, 
+and adequate contrast, not just red tint. 
+ 
+14. Graphics and Illustration Rules 
+You asked for amazing graphics. For ParkingSol, that should mean premium ambient 
+graphics, not cartoon illustrations. 
+Allowed graphics: 
+• abstract warm gradient blurs 
+• frosted geometric overlays 
+• soft orbital lighting 
+• status icons 
+• elegant line-based parking/vehicle/system symbols 
+• animated glow fields in hero regions 
+
+===== PAGE 24 =====
+
+Not allowed: 
+• stock illustrations 
+• cute character art 
+• generic SaaS blobs everywhere 
+• loud 3D cartoon scenes 
+• random icons with inconsistent stroke width 
+Graphics should support the feeling of “high-end operations software.” 
+ 
+15. Icons 
+Icon style 
+• outline-first 
+• rounded stroke edges 
+• consistent 1.75 px or 2 px stroke 
+• minimal fill 
+• warm brown default 
+• semantic override only when needed 
+Common icon areas 
+• dashboard summary 
+• violations 
+• vehicles 
+• events 
+• notifications 
+• settings 
+• rules 
+• users 
+• system status 
+ 
+16. Responsive Behavior 
+ParkingSol is desktop-first, but it must adapt gracefully. 
+
+===== PAGE 25 =====
+
+Desktop 
+• richest visual treatment 
+• full sidebar 
+• multi-column cards 
+• detail drawers 
+Tablet 
+• sidebar collapses 
+• cards stack more aggressively 
+• filters compress 
+• tables may horizontally scroll 
+Mobile 
+• only core admin/operator tasks need acceptable usability 
+• cards stack vertically 
+• table-heavy views become card lists where required 
+• hover-only behavior must degrade gracefully 
+Cursor-reactive effects should automatically reduce on touch devices. 
+ 
+17. Frontend Performance Rules 
+Beauty must not break speed. 
+Performance standards 
+• avoid giant video backgrounds 
+• avoid heavy canvas effects for every page 
+• keep background animations CSS-based where possible 
+• use transform and opacity for motion 
+• avoid animating blur intensity continuously on many elements 
+• keep cursor tracking limited to key surfaces 
+• debounce expensive pointer listeners 
+• lazy-load non-critical heavy views 
+
+===== PAGE 26 =====
+
+Specific rule 
+Only one or two major cursor-reactive ambient layers should exist per page. Do not 
+attach expensive mousemove listeners to every card. 
+ 
+18. Accessibility Requirements 
+ParkingSol’s warm aesthetic is allowed only if it remains accessible. 
+Required rules 
+• normal text minimum contrast: 4.5:1 
+• large text minimum contrast: 3:1 
+• UI component and graphic indicators minimum contrast: 3:1 
+• reduced motion mode required via prefers-reduced-motion support  
+• keyboard focus must always be visible 
+• semantic labels required for icon-only controls 
+• status must not be conveyed by color alone 
+Design implication 
+If a beige-brown combination looks beautiful but fails contrast, it must be adjusted. If a 
+hover glow looks premium but hides focus state, it must be revised. If cursor motion 
+feels alive but causes distraction, it must be reduced. 
+ 
+19. Implementation Tokens 
+These should be implemented as CSS variables or Tailwind theme tokens. 
+Example foundation: 
+css 
+:root { 
+  --bg-canvas: #F5EBDD; 
+  --bg-canvas-alt: #EFE2D0; 
+  --bg-surface: rgba(255, 248, 240, 0.58); 
+  --bg-surface-strong: rgba(255, 248, 240, 0.78); 
+  --text-primary: #3A2415; 
+  --text-secondary: #5A4332; 
+  --text-tertiary: #7B6658; 
+  --accent-ginger-500: #E36C2B; 
+
+===== PAGE 27 =====
+
+  --accent-ginger-600: #C85A21; 
+  --accent-cocoa-700: #4D311F; 
+  --border-default: rgba(104, 73, 49, 0.16); 
+  --border-glass: rgba(255, 255, 255, 0.34); 
+  --radius-card: 20px; 
+  --radius-button: 14px; 
+  --blur-card: 20px; 
+  --blur-modal: 28px; 
+  --shadow-card: 0 10px 30px rgba(86, 55, 31, 0.10); 
+  --shadow-float: 0 16px 40px rgba(86, 55, 31, 0.14); 
+} 
+ 
+ 
+20. Final Visual Contract 
+ParkingSol’s frontend must look like a premium warm-control dashboard with: 
+• Claude-like beige atmosphere 
+• dark brown typography 
+• ginger highlights and motion 
+• disciplined glassmorphism 
+• subtle cursor-responsive interactivity 
+• elegant layering 
+• high readability 
+• operational clarity 
+The result should feel: 
+• luxurious, but not flashy 
+• calm, but not dull 
+• animated, but not noisy 
+• modern, but not generic 
+• beautiful, but still built for real parking operations 
+This design system is locked for the MVP. New UI work must follow these tokens, 
+component rules, motion rules, and layout standards. If a new page or component does 
+not clearly fit this system, the system should be extended deliberately rather than 
+ignored. 
+
+===== PAGE 28 =====
+
+That is how ParkingSol gets a frontend that is not just functional, but memorable, 
+premium, and consistent. 
+Implementation Notes 
+Two constraints should stay visible while designing this interface: the product’s earlier 
+architecture focused on a real-time workflow where plate events are validated in 
+Firebase and unpaid vehicles trigger staff-facing review flows, so the UI must 
+foreground live events, violations, and notifications rather than decorative marketing 
+patterns. At the same time, glass surfaces and motion need guardrails, because 
+readability improves when complex backgrounds are paired with stronger blur, normal 
+text should reach at least 4.5:1 contrast, and motion should adapt when the user prefers 
+reduced motion. 
+ 

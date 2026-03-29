@@ -1,0 +1,218 @@
+{
+  "info": {
+    "name": "ParkingSol MVP",
+    "_postman_id": "8ee9ea9f-88c5-4d4c-9b5f-0123456789ab",
+    "description": "ParkingSol end-to-end webhook and operations API flow",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "Paid Event",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-client-secret", "value": "{{postmanClientSecret}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceKey\": \"postman-main-gate-entry\",\n  \"externalEventId\": \"pm_evt_paid_001\",\n  \"eventType\": \"entry\",\n  \"capturedAt\": \"{{$isoTimestamp}}\",\n  \"plate\": \"PAY1234\",\n  \"plateConfidence\": 0.96,\n  \"cameraLabel\": \"Entry Gate Camera\",\n  \"direction\": \"entry\",\n  \"metadata\": {\n    \"lane\": \"lane-1\",\n    \"notes\": \"paid event\"\n  }\n}"
+        },
+        "url": "{{baseUrl}}/webhooks/postman/events"
+      }
+    },
+    {
+      "name": "Unpaid Event",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-client-secret", "value": "{{postmanClientSecret}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceKey\": \"postman-main-gate-entry\",\n  \"externalEventId\": \"pm_evt_unpaid_001\",\n  \"eventType\": \"entry\",\n  \"capturedAt\": \"{{$isoTimestamp}}\",\n  \"plate\": \"UNPD001\",\n  \"plateConfidence\": 0.93,\n  \"cameraLabel\": \"Entry Gate Camera\",\n  \"direction\": \"entry\",\n  \"metadata\": {\n    \"lane\": \"lane-1\",\n    \"notes\": \"unpaid event\"\n  }\n}"
+        },
+        "url": "{{baseUrl}}/webhooks/postman/events"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body?.data?.violationId) { pm.environment.set('violationId', body.data.violationId); }",
+              "if (body?.data?.eventId) { pm.environment.set('eventId', body.data.eventId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Exempt Event",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-client-secret", "value": "{{postmanClientSecret}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceKey\": \"postman-main-gate-entry\",\n  \"externalEventId\": \"pm_evt_exempt_001\",\n  \"eventType\": \"entry\",\n  \"capturedAt\": \"{{$isoTimestamp}}\",\n  \"plate\": \"PERMIT1\",\n  \"plateConfidence\": 0.99,\n  \"cameraLabel\": \"Entry Gate Camera\",\n  \"direction\": \"entry\",\n  \"metadata\": {\n    \"lane\": \"lane-1\",\n    \"notes\": \"exempt event\"\n  }\n}"
+        },
+        "url": "{{baseUrl}}/webhooks/postman/events"
+      }
+    },
+    {
+      "name": "Duplicate Event",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-client-secret", "value": "{{postmanClientSecret}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceKey\": \"postman-main-gate-entry\",\n  \"externalEventId\": \"pm_evt_unpaid_001\",\n  \"eventType\": \"entry\",\n  \"capturedAt\": \"{{$isoTimestamp}}\",\n  \"plate\": \"UNPD001\",\n  \"plateConfidence\": 0.91,\n  \"cameraLabel\": \"Entry Gate Camera\",\n  \"direction\": \"entry\",\n  \"metadata\": {\n    \"lane\": \"lane-1\",\n    \"notes\": \"duplicate event\"\n  }\n}"
+        },
+        "url": "{{baseUrl}}/webhooks/postman/events"
+      }
+    },
+    {
+      "name": "Exit Event",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-client-secret", "value": "{{postmanClientSecret}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceKey\": \"postman-main-gate-entry\",\n  \"externalEventId\": \"pm_evt_exit_001\",\n  \"eventType\": \"exit\",\n  \"capturedAt\": \"{{$isoTimestamp}}\",\n  \"plate\": \"UNPD001\",\n  \"plateConfidence\": 0.95,\n  \"cameraLabel\": \"Exit Gate Camera\",\n  \"direction\": \"exit\",\n  \"metadata\": {\n    \"lane\": \"lane-2\",\n    \"notes\": \"exit event\"\n  }\n}"
+        },
+        "url": "{{baseUrl}}/webhooks/postman/events"
+      }
+    },
+    {
+      "name": "Invalid Payload",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-client-secret", "value": "{{postmanClientSecret}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceKey\": \"postman-main-gate-entry\",\n  \"capturedAt\": \"bad-date\",\n  \"plate\": \"\"\n}"
+        },
+        "url": "{{baseUrl}}/webhooks/postman/events"
+      }
+    },
+    {
+      "name": "Unauthorized Request",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-client-secret", "value": "invalid" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceKey\": \"postman-main-gate-entry\",\n  \"capturedAt\": \"{{$isoTimestamp}}\",\n  \"plate\": \"ABC123\"\n}"
+        },
+        "url": "{{baseUrl}}/webhooks/postman/events"
+      }
+    },
+    {
+      "name": "Violation Assign",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-test-user", "value": "{{testUserAdmin}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"assignedToUserId\":\"uid_operator_001\"}" },
+        "url": "{{baseUrl}}/violations/{{violationId}}/assign"
+      }
+    },
+    {
+      "name": "Violation Acknowledge",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "x-test-user", "value": "{{testUserAdmin}}" }
+        ],
+        "url": "{{baseUrl}}/violations/{{violationId}}/acknowledge"
+      }
+    },
+    {
+      "name": "Violation Escalate",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "x-test-user", "value": "{{testUserAdmin}}" }
+        ],
+        "url": "{{baseUrl}}/violations/{{violationId}}/escalate"
+      }
+    },
+    {
+      "name": "Violation Resolve",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-test-user", "value": "{{testUserAdmin}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"reason\":\"resolved\",\"notes\":\"manual test\"}" },
+        "url": "{{baseUrl}}/violations/{{violationId}}/resolve"
+      }
+    },
+    {
+      "name": "Dismiss Candidate Event",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-client-secret", "value": "{{postmanClientSecret}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceKey\": \"postman-main-gate-entry\",\n  \"externalEventId\": \"pm_evt_unpaid_002\",\n  \"eventType\": \"entry\",\n  \"capturedAt\": \"{{$isoTimestamp}}\",\n  \"plate\": \"UNPD002\",\n  \"plateConfidence\": 0.92,\n  \"cameraLabel\": \"Entry Gate Camera\",\n  \"direction\": \"entry\",\n  \"metadata\": {\n    \"lane\": \"lane-1\",\n    \"notes\": \"dismiss candidate\"\n  }\n}"
+        },
+        "url": "{{baseUrl}}/webhooks/postman/events"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body?.data?.violationId) { pm.environment.set('dismissViolationId', body.data.violationId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Violation Dismiss",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-test-user", "value": "{{testUserAdmin}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"reason\":\"false positive\"}" },
+        "url": "{{baseUrl}}/violations/{{dismissViolationId}}/dismiss"
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "organizationId": "org_demo_001",
+  "lotId": "lot_demo_001",
+  "sourceKey": "postman-main-gate-entry",
+  "seedPaymentPlate": "PAY1234",
+  "seedPermitPlate": "PERMIT1"
+}

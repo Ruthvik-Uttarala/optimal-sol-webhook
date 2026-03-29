@@ -1,0 +1,1251 @@
+
+
+===== PAGE 1 =====
+
+IMPLEMENTATION_PLAN.md  
+IMPLEMENTATION_PLAN.md 
+1. Document Purpose 
+This document defines the exact implementation sequence for ParkingSol MVP. It is the 
+build order for the real product, not a loose task list. Its purpose is to ensure the project 
+can be completed end to end in a tightly controlled 72-hour sprint without architectural 
+drift, duplicated work, or AI-generated guesswork. 
+This plan is designed around the current confirmed product direction: 
+• ParkingSol is not building custom LPR. 
+• ParkingSol begins after a plate event already exists. 
+• MVP flow is Postman -> webhook/API -> Firebase Cloud Functions -> 
+Firestore -> rules/decision engine -> violation/notification -> live 
+dashboard. 
+• Frontend is a TypeScript web app. 
+• Backend is Firebase Cloud Functions in TypeScript. 
+• Database is Firestore. 
+• Frontend hosting is Vercel. 
+• One Firebase project supports multiple authenticated users. 
+• Notifications are included in MVP. 
+• AWS is removed from MVP. 
+• Code must be pushed to GitHub. 
+• Product must be ready for later UniFi integration without re-architecting the 
+system. 
+The earlier R&D established the same core sequence in practical terms: detect plate 
+upstream, send event metadata through a webhook, validate in Firebase, check Firestore 
+for active payment, and create an unpaid alert workflow when required. Firebase’s 
+current Cloud Functions support for Node 20 and the exact pinned stack already chosen 
+for the frontend and backend also make this plan realistic as a unified TypeScript 
+implementation rather than a mixed-tool experiment.  
+This plan assumes a single repo with: 
+• apps/web 
+• functions 
+
+===== PAGE 2 =====
+
+• shared 
+• postman 
+This plan also assumes that documentation is already the source of truth: 
+• PRD.md 
+• APP_FLOW.md 
+• TECH_STACK.md 
+• FRONTEND_GUIDELINES.md 
+• BACKEND_STRUCTURE.md 
+• IMPLEMENTATION_PLAN.md 
+The build must follow this document in order. Do not skip ahead because skipping 
+foundation steps is how the stack becomes inconsistent and how AI tools start 
+improvising. 
+ 
+2. Implementation Philosophy 
+ParkingSol must be built in vertical slices, not isolated layers. That means each major 
+implementation phase should aim to produce something that can actually be exercised, 
+not just a pile of unconnected code. 
+For example: 
+• Do not build the whole frontend without a live backend. 
+• Do not build the whole backend without a route that can be hit from Postman. 
+• Do not build rules logic before payload validation and schema shape are stable. 
+• Do not build polished UI before route structure, auth shell, and core data views 
+exist. 
+2.1 The sequence rule 
+Every implementation step must answer one of these questions: 
+• Does it create the foundation for everything else? 
+• Does it enable end-to-end testing? 
+• Does it remove a major integration risk? 
+• Does it unlock the next phase cleanly? 
+If the answer is no, that step should not be prioritized early. 
+
+===== PAGE 3 =====
+
+2.2 Delivery objective 
+At the end of 72 hours, ParkingSol should be in this state: 
+• Repo exists in GitHub and all code is pushed. 
+• Frontend is deployed on Vercel. 
+• Backend is deployed on Firebase. 
+• Authentication works. 
+• Postman can send a parking event into the live backend. 
+• Backend makes a paid/unpaid/exempt decision. 
+• Firestore stores all required records. 
+• Violations are created for non-compliant cases. 
+• Notifications are visible in the app. 
+• Dashboard updates in real time. 
+• Admin/operator flows work. 
+• The system is cleanly structured for future UniFi webhook connection. 
+That is the definition of success for this sprint. 
+2.3 Build constraints 
+The build must optimize for: 
+• speed 
+• reliability 
+• clarity 
+• low ambiguity 
+• low dependency risk 
+• easy debugging 
+• deployability 
+The build must not optimize for: 
+• speculative features 
+• over-engineering 
+• broad future platform abstractions 
+• premature analytics 
+• highly customized infrastructure 
+• pixel-perfect polish before the core workflow works 
+ 
+
+===== PAGE 4 =====
+
+3. Sprint Structure 
+The 72-hour build will be split into seven phases: 
+1. Foundation and repository setup 
+2. Firebase and backend skeleton 
+3. Firestore schema and seedability 
+4. Event ingestion and rules pipeline 
+5. Frontend shell and authenticated app 
+6. Core operational pages and live data 
+7. QA, hardening, deployment, and final push 
+Each phase contains step numbers that must be implemented in sequence. 
+3.1 Phase order summary 
+• Phase 0: Lock environment and repo. 
+• Phase 1: Create backend framework and auth skeleton. 
+• Phase 2: Create Firestore schema support and test data paths. 
+• Phase 3: Build event ingestion and decision engine. 
+• Phase 4: Build frontend app shell and navigation. 
+• Phase 5: Connect UI to live backend and Firestore. 
+• Phase 6: Test all critical flows and deploy. 
+• Phase 7: Final readiness review for future UniFi integration. 
+3.2 Parallel work rule 
+Some work can happen in parallel, but only after the dependencies are established. 
+Allowed parallel examples: 
+• frontend layout can begin once route map and data contracts are stable 
+• UI component creation can happen while backend endpoints are being finalized 
+• QA scripts can be drafted while dashboard pages are being connected 
+Not allowed: 
+• finalizing frontend data tables before API response contracts exist 
+• building notifications UI before notification schema exists 
+• building system status page before backend health endpoint exists 
+• styling details before login and dashboard routes function 
+ 
+
+===== PAGE 5 =====
+
+4. Phase 0 — Repo, Environment, and Project Lock 
+0.1 Create GitHub repository 
+Goal: Create the single source code repository for ParkingSol MVP. 
+Tasks 
+• Create repo in GitHub. 
+• Set default branch to main. 
+• Protect main if possible. 
+• Add README placeholder. 
+• Add .gitignore. 
+• Add .nvmrc with locked Node version. 
+• Add root package.json. 
+• Add root workspace structure. 
+• Commit initial scaffold. 
+Deliverables 
+• Live GitHub repo. 
+• Clean first commit. 
+• Node version locked. 
+• Root install works. 
+Done criteria 
+• Repo clone works. 
+• npm install runs at root. 
+• Team/AI can work from the same structure. 
+ 
+0.2 Create folder structure 
+Goal: Lock the project structure before code starts spreading. 
+Required folders 
+text 
+parking-sol/ 
+  apps/ 
+
+===== PAGE 6 =====
+
+    web/ 
+  functions/ 
+  shared/ 
+  postman/ 
+  docs/ 
+ 
+Additional expected folders 
+text 
+apps/web/src/ 
+functions/src/ 
+shared/src/ 
+ 
+Done criteria 
+• Repo tree exists. 
+• No ad hoc folders like temp, new-app, backend-final, or test2. 
+ 
+0.3 Lock tech stack in package files 
+Goal: Ensure the exact versions already chosen are what the repo actually installs. 
+Tasks 
+• Pin frontend dependencies. 
+• Pin backend dependencies. 
+• Pin shared dependencies. 
+• Commit lockfile. 
+• Confirm Node version compatibility. 
+• Add basic root scripts for install/build/lint/test. 
+Required alignment 
+The frontend stack should align with the exact versions already chosen for React 18.2.0, 
+Vite 8.0.3, Firebase SDK 12.11.0, and React Router 7.13.2, while the backend aligns with 
+firebase-functions 7.2.2 and firebase-admin 13.7.0 running on Node 20-supported 
+Firebase infrastructure. 
+
+===== PAGE 7 =====
+
+Done criteria 
+• Clean install passes. 
+• No version conflicts. 
+• Lockfile committed. 
+ 
+0.4 Create base environment files 
+Goal: Separate local, dev, and production config early. 
+Tasks 
+• Create .env.example at repo or app level where needed. 
+• Create frontend env template. 
+• Create backend env template. 
+• Define naming standard for public vs secret env vars. 
+• Add placeholders only, never real secrets. 
+Frontend env examples 
+• VITE_FIREBASE_API_KEY 
+• VITE_FIREBASE_AUTH_DOMAIN 
+• VITE_FIREBASE_PROJECT_ID 
+• VITE_API_BASE_URL 
+• VITE_ENV_LABEL 
+Backend env examples 
+• webhook secret values 
+• internal test keys 
+• environment label 
+• optional admin-safe config 
+Done criteria 
+• No secrets in repo. 
+• New machine setup is understandable. 
+ 
+
+===== PAGE 8 =====
+
+0.5 Create branch and commit conventions 
+Goal: Prevent chaotic change history in a compressed sprint. 
+Suggested branch names 
+• feat/backend-ingestion 
+• feat/frontend-dashboard 
+• feat/violations-flow 
+• fix/auth-guard 
+• chore/repo-setup 
+Commit style 
+• feat: add postman event ingestion endpoint 
+• feat: add dashboard summary cards 
+• fix: prevent duplicate violation creation 
+• chore: add firebase config 
+Done criteria 
+• Team has one commit pattern. 
+• Merge history remains legible. 
+ 
+5. Phase 1 — Firebase Project and Backend Skeleton 
+1.1 Create Firebase project and connect CLI 
+Goal: Stand up the core backend platform. 
+Tasks 
+• Create Firebase project. 
+• Enable billing if required for deploys. 
+• Initialize Firestore. 
+• Initialize Authentication. 
+• Initialize Functions with TypeScript. 
+• Initialize Hosting only if used for redirects or not needed otherwise. 
+• Connect local repo to Firebase project. 
+• Set default project alias. 
+
+===== PAGE 9 =====
+
+Done criteria 
+• firebase use works. 
+• Functions directory is linked. 
+• Firestore exists. 
+ 
+1.2 Enable Firebase Authentication 
+Goal: Establish sign-in as a system primitive before UI is built deeply. 
+Tasks 
+• Enable email/password auth provider. 
+• Create initial admin user. 
+• Decide custom claims strategy or Firestore role profile strategy. 
+• Create backend auth verification middleware. 
+Deliverables 
+• One admin login available. 
+• Verified token can be read by backend. 
+• User record can be mirrored in Firestore. 
+Done criteria 
+• Can sign in via Firebase. 
+• Backend can identify current user. 
+ 
+1.3 Scaffold Express app inside Cloud Functions 
+Goal: Create one coherent API surface rather than scattered handlers. 
+Tasks 
+• Create functions/src/index.ts. 
+• Mount Express app. 
+• Add CORS middleware. 
+• Add request ID middleware. 
+
+===== PAGE 10 =====
+
+• Add JSON body parsing. 
+• Add centralized error handling. 
+• Add /api/v1/health route. 
+• Add route folder structure. 
+Required route groups 
+• webhooks 
+• events 
+• vehicles 
+• violations 
+• notifications 
+• rules 
+• users 
+• system 
+Done criteria 
+• Local emulator or deployed endpoint returns health response. 
+• API structure is visible and stable. 
+ 
+1.4 Add backend type system and validation base 
+Goal: Stop unvalidated data from entering business logic. 
+Tasks 
+• Create shared TypeScript types. 
+• Create Zod schemas for: 
+o event payload 
+o payment record 
+o permit record 
+o violation actions 
+o user preferences 
+o rule updates 
+• Create validation utility wrappers. 
+• Create error code enum. 
+
+===== PAGE 11 =====
+
+Done criteria 
+• Controller can validate body with one reusable pattern. 
+• Validation error response shape is standardized. 
+ 
+1.5 Add backend middleware 
+Goal: Build request control before sensitive routes multiply. 
+Required middleware 
+• request ID injection 
+• Firebase Auth verification 
+• lot access authorization 
+• admin-only guard 
+• support/test-mode guard 
+• error formatting 
+• optional API client secret verification for webhook endpoints 
+Done criteria 
+• Protected route can reject unauthenticated call. 
+• Admin route can reject operator call. 
+• Test route can reject production misuse. 
+ 
+1.6 Add logger and error envelope 
+Goal: Make debugging possible from day one. 
+Tasks 
+• Use structured logging. 
+• Log request start and finish. 
+• Log validation failures. 
+• Log event processing start and result. 
+• Log violation creation. 
+• Log notification creation. 
+• Return stable response envelope. 
+
+===== PAGE 12 =====
+
+Done criteria 
+• Logs are readable. 
+• Failed API calls are diagnosable. 
+ 
+6. Phase 2 — Firestore Schema and Seedable Data 
+2.1 Create repository layer 
+Goal: Separate Firestore reads/writes from business logic. 
+Repositories to create 
+• organizationsRepository 
+• lotsRepository 
+• usersRepository 
+• accessRepository 
+• sourcesRepository 
+• rulesRepository 
+• paymentsRepository 
+• permitsRepository 
+• eventsRepository 
+• vehicleStatesRepository 
+• sessionsRepository 
+• violationsRepository 
+• notificationsRepository 
+• auditLogsRepository 
+• systemConfigRepository 
+• processingLocksRepository 
+Done criteria 
+• Backend service code never calls Firestore directly without repository helpers. 
+ 
+2.2 Create collection constants and document ID helpers 
+Goal: Prevent typo-based schema drift. 
+
+===== PAGE 13 =====
+
+Tasks 
+• Centralize collection names. 
+• Centralize prefixed ID builders. 
+• Centralize status enums. 
+• Centralize date helpers. 
+Done criteria 
+• No hardcoded random collection strings across files. 
+ 
+2.3 Build Firestore seed scripts or support endpoints 
+Goal: Enable rapid test setup during the sprint. 
+Required seed data 
+• organization 
+• one lot 
+• one admin user profile 
+• one operator user profile 
+• one support user profile 
+• one Postman source 
+• one default rule set 
+• one active payment example 
+• one active permit example 
+• one system config document 
+Done criteria 
+• Test environment can be reset quickly. 
+• Demo data can be recreated in minutes. 
+ 
+2.4 Create user profile synchronization flow 
+Goal: Ensure authenticated users are usable inside the app. 
+
+===== PAGE 14 =====
+
+Tasks 
+• Create user document shape. 
+• Create GET /api/v1/me. 
+• Ensure first admin exists in users. 
+• Add lot access entries. 
+• Add notification preferences defaults. 
+Done criteria 
+• Frontend can retrieve current user. 
+• Role and lot scope are available. 
+ 
+2.5 Create lot, source, and rule baseline data 
+Goal: Establish the configuration the MVP logic depends on. 
+Minimum config 
+• one organization 
+• one lot 
+• one Postman test source 
+• grace period rule 
+• duplicate suppression rule 
+• notification routing rule 
+• default enforcement rule 
+Done criteria 
+• Backend can process event with real lot and source references. 
+• App has usable config on first launch. 
+ 
+7. Phase 3 — Event Ingestion and Decision Engine 
+3.1 Build Postman event ingestion endpoint 
+Goal: Make the first real vertical slice work. 
+
+===== PAGE 15 =====
+
+Endpoint 
+POST /api/v1/webhooks/postman/events 
+Tasks 
+• validate secret or test auth 
+• validate request body 
+• resolve source by key 
+• normalize plate and event type 
+• store raw payload hash 
+• create initial event record 
+• return request ID and event ID 
+Done criteria 
+• Postman can hit live endpoint successfully. 
+• Event record appears in Firestore. 
+ 
+3.2 Implement event normalization service 
+Goal: Convert all sources into one internal event shape. 
+Tasks 
+• normalize plate text 
+• normalize direction 
+• normalize timestamps 
+• set source metadata 
+• mark test/live source 
+• assign dedupe key 
+Done criteria 
+• Internal event object shape is consistent regardless of input quirks. 
+ 
+3.3 Implement duplicate suppression 
+Goal: Prevent noisy data and duplicate violations. 
+
+===== PAGE 16 =====
+
+Tasks 
+• create dedupe key strategy 
+• add processing lock lookup 
+• define duplicate window logic 
+• allow duplicate record retention if needed 
+• suppress duplicate downstream actions 
+Done criteria 
+• repeated submission of same event does not create repeated violations. 
+ 
+3.4 Implement payment lookup service 
+Goal: Support the core decision path already central to ParkingSol’s original 
+architecture, where the system checks Firestore for active paid plate sessions before 
+deciding whether a vehicle is compliant.  
+Tasks 
+• query active payments by normalized plate and time window 
+• return strongest valid match 
+• handle expired/cancelled records 
+• expose decision explanation 
+Done criteria 
+• paid vehicle test path works end to end. 
+ 
+3.5 Implement permit and allowlist lookup service 
+Goal: Support non-payment authorization cases. 
+Tasks 
+• query active permits 
+• support allowlist equivalence 
+• combine result with payment lookup 
+• return authorization source summary 
+
+===== PAGE 17 =====
+
+Done criteria 
+• exempt vehicle path works. 
+ 
+3.6 Implement rule engine service 
+Goal: Create deterministic decisioning. 
+Rule checks in order 
+• source validity 
+• duplicate suppression 
+• permit/allowlist 
+• active payment 
+• grace period 
+• enforcement hours 
+• manual review conditions 
+• violation threshold 
+• notification routing 
+Done criteria 
+• one service returns final decision: 
+o paid 
+o unpaid 
+o exempt 
+o pending_review 
+o duplicate 
+o error 
+ 
+3.7 Implement vehicle state service 
+Goal: Maintain current operational understanding of each plate. 
+Tasks 
+• upsert vehicleStates 
+• update last seen data 
+
+===== PAGE 18 =====
+
+• update presence status 
+• link open violation 
+• link active payment or permit 
+• set current status 
+Done criteria 
+• vehicle detail can be derived from one current-state document. 
+ 
+3.8 Implement parking session service 
+Goal: Track visits across entry and exit logic. 
+Tasks 
+• create open session on entry 
+• update existing session if appropriate 
+• close session on exit 
+• handle uncertain direction gracefully 
+• link payment/permit when relevant 
+Done criteria 
+• basic session timeline works for entry/exit test scenarios. 
+ 
+3.9 Implement violation creation service 
+Goal: Create an operational record for non-compliance. 
+Tasks 
+• create violation only when decision requires it 
+• avoid duplicate open violations for same unresolved case 
+• assign severity 
+• attach reason code 
+• link event and vehicle state 
+• write audit log 
+
+===== PAGE 19 =====
+
+Done criteria 
+• unpaid event creates one clear violation record. 
+ 
+3.10 Implement notification creation service 
+Goal: Surface violations and system events to users. 
+Tasks 
+• resolve target users by lot and role 
+• create in-app notification records 
+• classify severity 
+• link related entity 
+• support unread state 
+Done criteria 
+• unpaid event creates notification records for proper users. 
+ 
+3.11 Finalize event processing pipeline 
+Goal: Connect all services into one end-to-end execution path. 
+Tasks 
+• create orchestration service 
+• set processingStatus 
+• set decisionStatus 
+• persist all linked IDs 
+• update event as processed or failed 
+• emit audit logs 
+Done criteria 
+• one inbound event creates all expected downstream state updates. 
+ 
+
+===== PAGE 20 =====
+
+8. Phase 4 — Frontend Shell and Authenticated App 
+4.1 Scaffold Vite React app 
+Goal: Create the real frontend base aligned with the locked TypeScript stack, including 
+React 18.2.0 and Vite 8.0.3. 
+Tasks 
+• create Vite React TypeScript app 
+• install routing 
+• install Firebase SDK 
+• install state/query libs 
+• install Tailwind and theme config 
+• install icon and form dependencies 
+• add environment handling 
+Done criteria 
+• app runs locally. 
+• base theme loads. 
+• build passes. 
+ 
+4.2 Implement design system foundation 
+Goal: Translate the frontend guidelines into actual reusable UI primitives. 
+Tasks 
+• add color tokens 
+• add typography scale 
+• add spacing scale 
+• add glass card styles 
+• add button variants 
+• add input styles 
+• add badge styles 
+• add modal/drawer shell 
+• add table shell 
+• add toast system 
+
+===== PAGE 21 =====
+
+Done criteria 
+• UI primitives exist before page duplication begins. 
+ 
+4.3 Implement auth flow 
+Goal: Make real user login work before building deep pages. 
+Tasks 
+• create /login 
+• connect Firebase Auth 
+• handle loading state 
+• handle auth errors 
+• create protected route wrapper 
+• fetch current user profile after login 
+• create sign-out flow 
+Done criteria 
+• admin user can log in and reach dashboard. 
+ 
+4.4 Implement app shell 
+Goal: Establish navigation and page layout before content pages deepen. 
+Tasks 
+• sidebar 
+• topbar 
+• notification bell shell 
+• environment badge 
+• user menu 
+• global search shell 
+• route placeholders 
+
+===== PAGE 22 =====
+
+Core routes 
+• /dashboard 
+• /events 
+• /violations 
+• /vehicles 
+• /notifications 
+• /rules 
+• /users 
+• /settings 
+• /system-status 
+Done criteria 
+• app shell is navigable. 
+• role-aware nav can be introduced cleanly. 
+ 
+4.5 Implement frontend data layer 
+Goal: Standardize API calls and Firestore subscriptions. 
+Tasks 
+• create API client wrapper 
+• create auth token injection 
+• create query hooks 
+• create route-level data hooks 
+• create Firestore listener helpers for live views 
+• create error handler utilities 
+Done criteria 
+• pages can consume backend consistently. 
+ 
+
+===== PAGE 23 =====
+
+9. Phase 5 — Core Operational Pages and Live Data 
+5.1 Build Dashboard page 
+Goal: Deliver the primary operator landing page. 
+Required components 
+• summary cards 
+• recent events 
+• open violations preview 
+• unread notifications preview 
+• system status summary 
+• quick actions 
+Data dependencies 
+• system metrics endpoint 
+• recent events query 
+• open violations query 
+• notifications query 
+Done criteria 
+• logged-in user sees real data, not placeholders. 
+ 
+5.2 Build Live Events page 
+Goal: Expose the event stream clearly. 
+Tasks 
+• events table 
+• filters 
+• search by plate 
+• detail drawer or route 
+• status badges 
+• live updates 
+
+===== PAGE 24 =====
+
+Done criteria 
+• event submitted from Postman appears in UI quickly. 
+ 
+5.3 Build Event Detail page 
+Goal: Make the decision traceable. 
+Sections 
+• event summary 
+• raw metadata summary 
+• normalized data 
+• decision outcome 
+• linked vehicle 
+• linked violation 
+• audit summary 
+Done criteria 
+• support/admin user can inspect exactly what happened. 
+ 
+5.4 Build Violations list page 
+Goal: Create the operational enforcement queue. 
+Tasks 
+• violations table 
+• filters by status 
+• severity indicators 
+• assignee info if used 
+• action entry points 
+Done criteria 
+• unpaid events surface cleanly here. 
+ 
+
+===== PAGE 25 =====
+
+5.5 Build Violation Detail page 
+Goal: Allow action on one violation. 
+Actions 
+• acknowledge 
+• resolve 
+• dismiss 
+• escalate 
+• assign 
+Data sections 
+• reason 
+• trigger event 
+• vehicle history summary 
+• audit log summary 
+• action panel 
+Done criteria 
+• violation state changes persist through backend and reflect in UI. 
+ 
+5.6 Build Vehicles page and Vehicle Detail page 
+Goal: Make plate-centric investigation easy. 
+Tasks 
+• vehicle search 
+• state summary 
+• recent events 
+• recent violations 
+• current presence 
+• current authorization 
+Done criteria 
+• operator can search a plate and understand its history fast. 
+
+===== PAGE 26 =====
+
+ 
+5.7 Build Notifications page 
+Goal: Support the staff alert flow that earlier ParkingSol planning treated as a core 
+product behavior for unpaid vehicles.  
+Tasks 
+• notifications list 
+• unread state 
+• mark as read 
+• deep-link navigation 
+• notification badge count 
+Done criteria 
+• new unpaid violation produces visible user-facing notification. 
+ 
+5.8 Build Rules page 
+Goal: Allow admin configuration. 
+Tasks 
+• rules list 
+• create/edit modal or form 
+• activate/deactivate 
+• audit view 
+• validation errors 
+Done criteria 
+• admin can change lot rules without editing Firestore manually. 
+ 
+5.9 Build Users page 
+Goal: Support multi-user architecture from day one. 
+
+===== PAGE 27 =====
+
+Tasks 
+• users list 
+• user detail view 
+• role display 
+• access scope display 
+• create/invite flow if time permits 
+• deactivate/reactivate action 
+Done criteria 
+• admin can manage operational access through UI or supported backend actions. 
+ 
+5.10 Build System Status page 
+Goal: Make the environment trustworthy during the sprint and after launch. 
+Data to show 
+• environment label 
+• last event received 
+• last successful processing time 
+• recent failure count 
+• backend health 
+• test mode/live mode state 
+• source status summary 
+Done criteria 
+• support can diagnose whether the pipeline is alive. 
+ 
+10. Phase 6 — Testing, Hardening, and Deployment 
+6.1 Create Postman collection 
+Goal: Formalize the MVP test surface. 
+
+===== PAGE 28 =====
+
+Required requests 
+• health 
+• login or auth setup notes 
+• paid event 
+• unpaid event 
+• permit event 
+• duplicate event 
+• exit event 
+• invalid payload 
+• rule change smoke test 
+• violation action requests 
+Done criteria 
+• one collection can reproduce the critical flows. 
+ 
+6.2 Create Newman regression run 
+Goal: Make API testing repeatable. 
+Tasks 
+• add Newman config 
+• add basic CI-compatible run script 
+• ensure test environment variables can be injected 
+Done criteria 
+• collection runs from command line. 
+ 
+6.3 Create core rule-engine tests 
+Goal: Prevent the decision engine from silently drifting. 
+Minimum automated tests 
+• active payment yields paid 
+
+===== PAGE 29 =====
+
+• active permit yields exempt 
+• unpaid without exemption creates violation 
+• duplicate suppressed does not create second violation 
+• exit updates session correctly 
+• invalid payload rejected 
+Done criteria 
+• business-critical logic has automated coverage. 
+ 
+6.4 Create frontend smoke tests 
+Goal: Catch obvious UI regressions. 
+Minimum UI checks 
+• login renders 
+• dashboard loads for authenticated user 
+• events page renders rows 
+• violation detail action button exists 
+• notifications page loads 
+Done criteria 
+• basic browser path is covered. 
+ 
+6.5 Harden authorization 
+Goal: Prevent accidental overexposure. 
+Tasks 
+• verify route guards 
+• verify lot scope filtering 
+• verify admin-only endpoints 
+• verify support-only test endpoints 
+• verify frontend nav hiding 
+• verify unauthorized route behavior 
+
+===== PAGE 30 =====
+
+Done criteria 
+• operator cannot access admin config endpoints. 
+• support-only actions cannot run in production. 
+ 
+6.6 Harden error handling 
+Goal: Make failures understandable instead of mysterious. 
+Tasks 
+• standardize error envelopes 
+• add human-readable frontend messages 
+• add retry buttons where useful 
+• preserve logs with request IDs 
+• ensure failed event processing still records diagnostic state 
+Done criteria 
+• broken requests are traceable without manual guesswork. 
+ 
+6.7 Prepare Vercel deployment 
+Goal: Deploy frontend to a stable public URL. 
+Tasks 
+• connect GitHub repo to Vercel 
+• configure frontend root 
+• set environment variables 
+• verify build command 
+• verify production route fallback works 
+• verify auth redirect behavior 
+Done criteria 
+• frontend is live and usable from production URL. 
+ 
+
+===== PAGE 31 =====
+
+6.8 Deploy Firebase backend 
+Goal: Put the API and backend logic live. 
+Tasks 
+• deploy Firestore rules 
+• deploy indexes 
+• deploy functions 
+• verify region and runtime 
+• verify env config 
+• verify live health endpoint 
+• verify auth token validation in production 
+Done criteria 
+• backend is live and responds correctly. 
+ 
+6.9 Connect live frontend to live backend 
+Goal: Remove any local-only assumptions. 
+Tasks 
+• point Vercel app to deployed API 
+• verify auth to API 
+• verify notification reads 
+• verify system status page 
+• verify live Firestore subscriptions 
+• run real Postman event against deployed endpoint 
+Done criteria 
+• full production path works, not just localhost. 
+ 
+
+===== PAGE 32 =====
+
+11. Phase 7 — End-to-End Validation and Final Release Gate 
+7.1 Happy path validation 
+Goal: Confirm the primary business flow works exactly as intended. 
+Required end-to-end test 
+1. Create or seed active payment. 
+2. Send Postman paid event. 
+3. Confirm event stored. 
+4. Confirm decision is paid. 
+5. Confirm no violation created. 
+6. Confirm dashboard updates. 
+Done criteria 
+• paid path verified on deployed environment. 
+ 
+7.2 Unpaid flow validation 
+Goal: Confirm the core enforcement value exists. 
+Required end-to-end test 
+1. Use plate with no payment or permit. 
+2. Send Postman event. 
+3. Confirm event stored. 
+4. Confirm decision is unpaid. 
+5. Confirm violation created. 
+6. Confirm vehicle state updated. 
+7. Confirm notification created. 
+8. Confirm violation appears in UI. 
+Done criteria 
+• unpaid path verified on deployed environment. 
+ 
+
+===== PAGE 33 =====
+
+7.3 Permit/exempt flow validation 
+Goal: Confirm non-payment authorization works. 
+Required end-to-end test 
+1. Seed active permit. 
+2. Send event. 
+3. Confirm event decision is exempt. 
+4. Confirm no violation created. 
+5. Confirm vehicle state reflects exempt. 
+Done criteria 
+• exempt path verified. 
+ 
+7.4 Duplicate suppression validation 
+Goal: Ensure noisy inputs do not corrupt operations. 
+Required end-to-end test 
+1. Send same unpaid event twice within duplicate window. 
+2. Confirm first creates violation. 
+3. Confirm second does not create another open violation. 
+4. Confirm event duplicate handling is visible. 
+Done criteria 
+• duplicate logic verified. 
+ 
+7.5 Violation action validation 
+Goal: Verify operator workflow is real, not demo-only. 
+Required actions 
+• acknowledge 
+• resolve 
+• dismiss 
+
+===== PAGE 34 =====
+
+• escalate 
+Validate 
+• API updates 
+• Firestore updates 
+• UI updates 
+• audit log written 
+• notifications react appropriately if implemented 
+Done criteria 
+• operator workflow is complete. 
+ 
+7.6 Multi-user validation 
+Goal: Confirm the shared backend actually supports different roles. 
+Test matrix 
+• admin login 
+• operator login 
+• manager login 
+• support login 
+• route visibility 
+• API access restrictions 
+• lot scope filtering 
+Done criteria 
+• role model behaves correctly. 
+ 
+7.7 Final release checklist 
+The system is ready for MVP completion only if all of these are true: 
+• GitHub repo contains complete source. 
+• Root install works. 
+• Frontend builds successfully. 
+
+===== PAGE 35 =====
+
+• Backend deploys successfully. 
+• Firestore schema is in use. 
+• Admin can log in. 
+• Operator can log in. 
+• Postman can hit deployed event endpoint. 
+• Paid decision path works. 
+• Unpaid decision path works. 
+• Permit path works. 
+• Duplicate suppression works. 
+• Violation actions work. 
+• Notifications appear in app. 
+• Dashboard shows live data. 
+• System status page works. 
+• No critical console errors remain. 
+• No hardcoded local URLs remain. 
+• No secrets are committed. 
+• README setup steps are present. 
+ 
+12. Recommended 72-Hour Time Breakdown 
+This is the practical execution schedule. 
+Day 1 — Foundation and backend core 
+Hour block 1 
+• repo setup 
+• folder structure 
+• package locking 
+• env templates 
+• Firebase init 
+Hour block 2 
+• auth setup 
+• backend Express shell 
+• middleware 
+• health endpoint 
+
+===== PAGE 36 =====
+
+• logging/error envelope 
+Hour block 3 
+• Firestore repositories 
+• seed data 
+• user profiles 
+• lot/source/rule baseline 
+Hour block 4 
+• Postman ingestion endpoint 
+• normalization 
+• dedupe skeleton 
+Day 1 exit criteria 
+• project installs 
+• backend deploys 
+• health endpoint works 
+• event endpoint accepts and stores a basic event 
+ 
+Day 2 — Decision engine and core UI 
+Hour block 5 
+• payment lookup 
+• permit lookup 
+• rule engine 
+• vehicle state updates 
+Hour block 6 
+• session handling 
+• violation creation 
+• notification creation 
+• audit logging 
+
+===== PAGE 37 =====
+
+Hour block 7 
+• frontend scaffold 
+• auth flow 
+• app shell 
+• route setup 
+• design system primitives 
+Hour block 8 
+• dashboard 
+• events page 
+• violations page 
+• notifications page 
+Day 2 exit criteria 
+• event endpoint processes paid/unpaid decisions 
+• dashboard can show real data 
+• unpaid event creates visible violation 
+ 
+Day 3 — Hardening, deployment, and full validation 
+Hour block 9 
+• vehicle detail 
+• violation detail actions 
+• rules page 
+• users page 
+• system status page 
+Hour block 10 
+• Postman collection 
+• automated rule tests 
+• smoke UI tests 
+• auth hardening 
+
+===== PAGE 38 =====
+
+Hour block 11 
+• Vercel deploy 
+• Firebase deploy 
+• live env variable setup 
+• production connectivity checks 
+Hour block 12 
+• full end-to-end test pass 
+• bug fixes 
+• final GitHub cleanup 
+• README and launch readiness review 
+Day 3 exit criteria 
+• production deployment works 
+• all critical flows validated 
+• code is pushed and documented 
+ 
+13. What Not to Build During This Sprint 
+To protect the implementation sequence, do not divert time into: 
+• custom LPR or OCR work 
+• mobile app work 
+• SMS/email complexity unless absolutely necessary 
+• deep analytics dashboards 
+• advanced charting 
+• evidence image pipelines unless needed immediately 
+• public driver-facing flows 
+• invoice/billing systems 
+• legal citation workflows 
+• map views 
+• enterprise multi-tenant onboarding UX 
+• camera configuration UI 
+• custom design experiments beyond the locked system 
+• performance micro-optimizations before correctness is proven 
+
+===== PAGE 39 =====
+
+The earlier R&D focused the real operational value on plate-event handling, Firebase-
+backed validation, and unpaid alerting, so the implementation plan should stay centered 
+on that path instead of expanding into adjacent systems.  
+ 
+14. Responsibility Model for AI-Assisted Build 
+Because this project is intended to be executed with heavy AI coding assistance, tasks 
+should be framed in implementation-safe units. 
+Good AI task units 
+• create Zod schema for Postman event payload 
+• build POST /api/v1/webhooks/postman/events 
+• create Firestore repository for violations 
+• build dashboard summary cards from /system/metrics 
+• build notifications list page with unread filter 
+• add violation acknowledge endpoint and UI button 
+Bad AI task units 
+• build the whole backend 
+• make the dashboard amazing 
+• connect everything automatically 
+• improve architecture as needed 
+• add anything missing 
+The smaller and clearer the task, the less the AI invents. 
+Human review checkpoints 
+A human should review after: 
+• repo setup 
+• auth setup 
+• schema definition 
+• ingestion endpoint 
+• rule engine 
+• violation logic 
+• first dashboard connection 
+• production deploy 
+
+===== PAGE 40 =====
+
+• final QA pass 
+ 
+15. Completion Standard 
+ParkingSol MVP is complete when the actual production-deployed system behaves like 
+the documented product, app flow, tech stack, frontend system, and backend structure. 
+It is not complete when files merely exist. It is complete when the product works end to 
+end. 
+The most important completion proof is this: 
+1. Open the deployed ParkingSol web app. 
+2. Log in as an authorized user. 
+3. Send a test event from Postman to the deployed ingestion endpoint. 
+4. Watch the backend process it. 
+5. Confirm Firestore updates. 
+6. Confirm the dashboard updates live. 
+7. Confirm unpaid behavior creates a violation and notification. 
+8. Confirm the operator can act on that violation in the UI. 
+9. Confirm all code is in GitHub. 
+If that sequence works, the MVP is real. If it does not, the implementation is not 
+finished. 
+Notes 
+This implementation plan is intentionally ordered around the same operational chain 
+already identified in the earlier ParkingSol research: incoming plate event, Firebase 
+validation, Firestore state update, unpaid detection, and staff-facing alert flow. It also 
+stays aligned with the exact stack already locked for the project, which keeps the build 
+on a single Node 20-compatible Firebase backend and a pinned React 18.2.0 plus Vite 
+frontend rather than introducing version drift or framework ambiguity during the 72-
+hour sprint. 
+ 

@@ -1,0 +1,978 @@
+
+
+===== PAGE 1 =====
+
+APP_FLOW.md  
+1. Document Purpose 
+This document defines the complete application flow for ParkingSol. Its purpose is to 
+remove ambiguity from how users move through the product, what pages exist, what 
+each page does, what actions are available on each page, and what the system should do 
+after each action. This document is intentionally detailed so implementation can happen 
+without guessing. 
+ParkingSol is not a camera app. It is not a license plate recognition product. It is the 
+parking operations software layer that receives parking events, applies rules, decides 
+paid versus unpaid status, creates violations when necessary, updates the dashboard in 
+real time, and notifies the correct users. 
+This document answers five practical questions: 
+1. What screens exist in the MVP? 
+2. Who can access each screen? 
+3. How does a user move from screen to screen? 
+4. What happens after every important user action? 
+5. What happens when the system receives an event even when no user is actively 
+on the page? 
+The app flow in this document assumes the following current product direction: 
+• Frontend is a TypeScript web app. 
+• Backend is Firebase Cloud Functions. 
+• Database is Firestore. 
+• Hosting is Vercel. 
+• Authentication is Firebase Authentication. 
+• Notifications are part of the MVP. 
+• Testing of event ingestion starts with Postman. 
+• UniFi is a future live event source, not required for initial build completion. 
+• One Firebase project supports multiple authenticated users. 
+• The product is an operator/admin dashboard, not a public customer-facing app. 
+The earlier R&D already centered the system on receiving plate-related events, checking 
+whether a plate has an active payment in Firebase, and alerting staff when a vehicle is 
+unpaid, while analyzing all vehicles and preserving enforcement-focused records for 
+violations. That earlier flow also assumed an app-facing review experience backed by 
+
+===== PAGE 2 =====
+
+Firebase Authentication, Firestore, and notifications, which makes a web dashboard 
+flow the correct next step for this version of ParkingSol.  
+ 
+2. Application Flow Principles 
+Before defining pages, the application needs consistent navigation rules. These 
+principles apply everywhere in the product. 
+2.1 Core flow principles 
+• Every page must have a single primary purpose. 
+• Every important action must have a visible next step. 
+• No user should need to guess where to go after login. 
+• The app should prioritize live operations, not static reporting. 
+• The system should surface unpaid/exception events faster than compliant events. 
+• Operators should reach active violations in one click from any core dashboard 
+screen. 
+• Admin tasks must be separated from live enforcement tasks to reduce accidental 
+changes. 
+• Destructive actions must require confirmation. 
+• Permission restrictions must be visible and enforced. 
+• The navigation must remain consistent across desktop layouts. 
+2.2 Global layout principles 
+After login, the app uses a persistent web dashboard shell with: 
+• Left sidebar navigation. 
+• Top bar with lot selector, notifications, search, user menu, and environment 
+badge. 
+• Main content area. 
+• Optional right-side details drawer on selected pages. 
+• Toast or banner system for success, warning, and error states. 
+2.3 MVP navigation model 
+Primary left navigation: 
+• Dashboard 
+• Live Events 
+• Violations 
+
+===== PAGE 3 =====
+
+• Vehicles 
+• Notifications 
+• Rules 
+• Users 
+• Settings 
+• System Status 
+The app should not hide key screens behind modal-only access. Core pages must have 
+direct routes so users can bookmark or return to them. 
+2.4 Role-aware navigation 
+Different roles see different nav items: 
+• Operator: Dashboard, Live Events, Violations, Vehicles, Notifications 
+• Admin: All operator pages plus Rules, Users, Settings, System Status 
+• Manager: Dashboard, Violations, Vehicles, Notifications, System Status 
+• Support/Implementation: Dashboard, Live Events, Violations, Vehicles, 
+Notifications, System Status, and test/integration visibility if enabled 
+Pages that are unavailable to a user should either: 
+• Not appear in navigation at all, or 
+• Appear disabled only if the design intentionally communicates capability tiers. 
+For MVP, hiding inaccessible pages is cleaner. 
+ 
+3. Route Map 
+This is the canonical route list for the MVP web application. 
+3.1 Public routes 
+• / 
+• /login 
+• /forgot-password 
+• /reset-password 
+• /unauthorized 
+
+===== PAGE 4 =====
+
+3.2 Authenticated routes 
+• /dashboard 
+• /events 
+• /events/:eventId 
+• /violations 
+• /violations/:violationId 
+• /vehicles 
+• /vehicles/:plate 
+• /notifications 
+• /rules 
+• /rules/:ruleId 
+• /users 
+• /users/:userId 
+• /settings 
+• /system-status 
+• /profile 
+3.3 Optional admin/support routes for MVP if time allows 
+• /integrations 
+• /test-console 
+• /audit-log 
+These optional routes are useful, but if time becomes tight, their core functionality can 
+be embedded inside System Status and Settings rather than built as separate pages. 
+ 
+4. Global Navigation Behavior 
+4.1 Sidebar behavior 
+The left sidebar is persistent on desktop and collapsible on smaller screens. 
+Each navigation item must: 
+• Show icon and label. 
+• Highlight current route. 
+• Preserve state on refresh. 
+• Respect role-based visibility. 
+
+===== PAGE 5 =====
+
+4.2 Top bar behavior 
+The top bar includes: 
+• Global search. 
+• Notification bell with unread count. 
+• Current lot or site context. 
+• Environment indicator such as “Test” or “Production”. 
+• User avatar menu. 
+4.3 Global search behavior 
+Search should accept: 
+• Plate number. 
+• Event ID. 
+• Violation ID. 
+• User name or email for admins. 
+If a search matches: 
+• A plate, route to /vehicles/:plate 
+• A violation ID, route to /violations/:violationId 
+• An event ID, route to /events/:eventId 
+If no results exist: 
+• Show “No results found” 
+• Keep recent searches visible if available 
+4.4 Notification behavior 
+The notification bell opens a panel or routes to the Notifications page. It must show: 
+• Unread count 
+• Most recent alerts first 
+• Type badge 
+• Timestamp 
+• Quick action or “View details” 
+Unpaid vehicle alerts must be treated as high-visibility items because the earlier 
+ParkingSol flow was built around detecting non-payment and surfacing alerts for staff 
+review.  
+
+===== PAGE 6 =====
+
+4.5 Real-time behavior 
+The app should reflect Firestore changes live where operationally important: 
+• Dashboard counters 
+• Live events feed 
+• Violations list 
+• Notification list 
+• Vehicle details if current status changes 
+This real-time behavior matters because the earlier system concept assumed event-
+driven updates and near-immediate operator visibility after validation.  
+ 
+5. Public and Authentication Pages 
+5.1 Landing route: / 
+Purpose 
+This route decides where to send the user. 
+Behavior 
+• If unauthenticated, redirect to /login 
+• If authenticated, redirect to /dashboard 
+• If auth status is still loading, show loading state 
+User path 
+1. User opens app URL. 
+2. System checks auth state. 
+3. User is routed accordingly. 
+There should be no marketing homepage in MVP. ParkingSol is an operations product, 
+not a public brochure site. 
+ 
+5.2 Login page: /login 
+Purpose 
+Allow approved users to sign in to ParkingSol. 
+
+===== PAGE 7 =====
+
+Components 
+• Email input 
+• Password input 
+• Sign in button 
+• Forgot password link 
+• Error banner area 
+• Loading state 
+• Optional “Remember me” checkbox if easy to implement 
+Primary actions 
+• Sign in 
+• Go to forgot password 
+Validations 
+• Email required 
+• Password required 
+• Show helpful auth errors 
+• Prevent duplicate submission while loading 
+Success behavior 
+• On success, redirect to /dashboard 
+• Record last login timestamp if implemented 
+• Load user role and allowed lot scope 
+Failure behavior 
+• Invalid credentials show inline error 
+• Disabled account shows access error 
+• Network issue shows retry guidance 
+User path 
+1. User enters credentials. 
+2. Auth request runs. 
+3. On success, app loads user context and routes to dashboard. 
+4. On failure, stay on page and show error. 
+ 
+
+===== PAGE 8 =====
+
+5.3 Forgot password page: /forgot-password 
+Purpose 
+Allow a user to request a password reset email. 
+Components 
+• Email input 
+• Send reset link button 
+• Back to login link 
+Success behavior 
+• Show confirmation message 
+• Remain on page or redirect to login after a brief delay 
+Failure behavior 
+• Show friendly error if email is invalid or request fails 
+User path 
+1. User clicks forgot password. 
+2. User enters email. 
+3. System sends reset request. 
+4. User returns to login. 
+ 
+5.4 Reset password page: /reset-password 
+Purpose 
+Allow completion of password reset flow. 
+Components 
+• New password 
+• Confirm password 
+• Submit button 
+
+===== PAGE 9 =====
+
+Behavior 
+• Validate reset token 
+• Enforce minimum password policy 
+• Redirect to login after success 
+ 
+5.5 Unauthorized page: /unauthorized 
+Purpose 
+Explain that the user is signed in but lacks access to the requested route. 
+Components 
+• Clear message 
+• Back to dashboard button 
+• Sign out option 
+Behavior 
+• No dead end 
+• Route user somewhere useful 
+ 
+6. Core Authenticated Experience 
+6.1 Dashboard page: /dashboard 
+Purpose 
+The Dashboard is the default home for authenticated users. It gives an immediate 
+operational snapshot of the parking lot. 
+Main content blocks 
+• Current system summary cards 
+• Recent live events 
+• Open violations summary 
+• Unpaid vehicles needing attention 
+• Notifications preview 
+
+===== PAGE 10 =====
+
+• System health preview 
+• Quick actions 
+Key summary cards 
+• Events today 
+• Active open violations 
+• Vehicles currently marked in-lot 
+• Unread alerts 
+• Processing success/failure status 
+• Possibly compliant vs non-compliant counts 
+Quick actions 
+• View live events 
+• View all violations 
+• Search vehicle 
+• Open rules page (admin only) 
+• Open users page (admin only) 
+Dashboard behavior 
+The dashboard is not just a report page. It is the operational home page. It should 
+answer: 
+• Is the system receiving events? 
+• Are unpaid vehicles being detected? 
+• Is anything urgent? 
+• Is the system healthy enough to trust? 
+The prior flow concept already treated parking events as a stream that leads to 
+paid/unpaid decisions and operator alerts, so the dashboard must surface that pipeline 
+clearly instead of hiding it in back-office pages.  
+User paths from Dashboard 
+• Click recent event -> /events/:eventId 
+• Click open violation -> /violations/:violationId 
+• Click unpaid vehicle plate -> /vehicles/:plate 
+• Click alert -> /notifications or direct detail route 
+• Click “View all events” -> /events 
+
+===== PAGE 11 =====
+
+• Click “View all violations” -> /violations 
+Empty states 
+If there is no data yet: 
+• Show “No events received yet” 
+• Show instructions to send a test event via Postman 
+• Show integration readiness note in test mode 
+Error states 
+If live subscriptions fail: 
+• Show stale data warning 
+• Provide retry button 
+• Do not remove last successful state immediately unless data is definitely 
+unavailable 
+ 
+6.2 Live Events page: /events 
+Purpose 
+Show the real-time feed of normalized parking events entering the system. 
+Main features 
+• Live event stream 
+• Search by plate or event ID 
+• Filters 
+• Sort by newest first 
+• Status tags 
+• Event source visibility 
+• Quick open of related vehicle or violation 
+Event row fields 
+• Timestamp 
+• Plate 
+• Event source 
+• Direction 
+
+===== PAGE 12 =====
+
+• Processing result 
+• Compliance result 
+• Violation created yes/no 
+• Camera/source name if available 
+• Confidence or raw source quality if included 
+Filters 
+• Date/time range 
+• Paid 
+• Unpaid 
+• Pending review 
+• Duplicate suppressed 
+• Entry 
+• Exit 
+• Source type 
+• Violation created 
+• Errors only 
+Actions from each row 
+• View event details 
+• View related vehicle 
+• View related violation 
+• Copy event ID 
+• Retry processing only if support/admin flow is allowed 
+User path 
+1. User opens Events page. 
+2. Sees newest events at top. 
+3. Applies filters or searches plate. 
+4. Opens an event for full details. 
+Real-time behavior 
+New events should appear at the top automatically. The earlier R&D described a real-
+time event pipeline from event source to Firebase decisioning, so the event list should 
+behave like an operational stream rather than a static table.  
+ 
+
+===== PAGE 13 =====
+
+6.3 Event Details page: /events/:eventId 
+Purpose 
+Show complete information for one parking event and the decision made from it. 
+Sections 
+• Event summary 
+• Raw input metadata 
+• Normalized event data 
+• Processing timeline 
+• Decision result 
+• Linked vehicle record 
+• Linked violation if created 
+• Audit notes 
+• Debug payload area for support/admin if allowed 
+Key fields 
+• Event ID 
+• External event ID 
+• Timestamp 
+• Plate 
+• Direction 
+• Source 
+• Lot 
+• Decision outcome 
+• Duplicate status 
+• Rule evaluation summary 
+• Related session ID 
+• Related violation ID if applicable 
+Actions 
+• View vehicle 
+• View violation 
+• Copy event payload 
+• Mark for review if support/admin 
+• Add note if implemented 
+
+===== PAGE 14 =====
+
+Back navigation 
+• Back to events list 
+• Preserve prior filters when possible 
+ 
+6.4 Violations list page: /violations 
+Purpose 
+Provide the operational queue for non-compliant or exception vehicles. 
+Main features 
+• Open violations table 
+• Filtering by status and severity 
+• Search by plate or violation ID 
+• Assignee or reviewer visibility if used 
+• Aging indicators 
+• Quick actions 
+Violation list fields 
+• Violation ID 
+• Plate 
+• Created time 
+• Rule reason 
+• Status 
+• Severity 
+• Linked event 
+• Assigned reviewer if used 
+• Last updated time 
+Filter options 
+• Open 
+• Acknowledged 
+• Resolved 
+• Dismissed 
+• Escalated 
+• Today 
+
+===== PAGE 15 =====
+
+• Oldest first 
+• Highest priority 
+• My items if assignment exists 
+Quick actions 
+• Open details 
+• Acknowledge 
+• Resolve 
+• Dismiss 
+• Escalate 
+Page purpose in operations 
+This page is one of the most important in the app because ParkingSol’s core value is 
+identifying vehicles that are unpaid or otherwise in violation and putting them into a 
+clean review workflow.  
+User path 
+1. User sees open violations by default. 
+2. User opens one violation. 
+3. User takes action. 
+4. List updates live. 
+ 
+6.5 Violation Details page: /violations/:violationId 
+Purpose 
+Provide the full case view for one violation. 
+Sections 
+• Violation header 
+• Current status 
+• Reason code and decision summary 
+• Triggering event details 
+• Vehicle history summary 
+• Supporting evidence metadata 
+• Notes and audit trail 
+• Action panel 
+
+===== PAGE 16 =====
+
+Core actions 
+• Acknowledge violation 
+• Resolve violation 
+• Dismiss violation 
+• Escalate violation 
+• Add note 
+• View related vehicle 
+• View related event 
+Required action rules 
+• Acknowledge marks violation as seen 
+• Resolve requires resolution reason 
+• Dismiss requires dismissal reason 
+• Escalate may require admin/operator notes 
+State change feedback 
+Every status-changing action must: 
+• Confirm action intent 
+• Save to backend 
+• Update audit history 
+• Trigger follow-on notifications if applicable 
+• Refresh list and counts live 
+Empty or invalid state 
+If violation no longer exists: 
+• Show “Violation not found” 
+• Offer return to violations list 
+ 
+6.6 Vehicles list page: /vehicles 
+Purpose 
+Provide a searchable vehicle-centric view of system activity. 
+
+===== PAGE 17 =====
+
+Main features 
+• Search by plate 
+• Recent vehicle activity 
+• Current status 
+• Permit/payment state 
+• Recent violations count 
+• Current in-lot status 
+Why this page matters 
+Operators often think in terms of plate numbers, not event IDs. This page gives a direct 
+way to answer “What is going on with this car?” 
+User path 
+1. User enters or selects a plate. 
+2. Results show matching vehicles or recent plates. 
+3. User opens plate details. 
+ 
+6.7 Vehicle Details page: /vehicles/:plate 
+Purpose 
+Show the full history and current operational state for a specific plate. 
+Sections 
+• Plate summary 
+• Current status 
+• Payment/permit status 
+• Current presence status 
+• Recent events timeline 
+• Violation history 
+• Notes/audit section 
+• Related rule outcomes 
+Summary indicators 
+• Paid / unpaid / exempt / unknown 
+• In lot / out of lot / uncertain 
+
+===== PAGE 18 =====
+
+• Open violation count 
+• Last seen time 
+• Last source/camera 
+• Permit or whitelist flag 
+Actions 
+• Open related event 
+• Open related violation 
+• Add internal note if allowed 
+• Flag for manual review if support/admin 
+• View current rule explanation 
+User path 
+1. User searches plate. 
+2. Opens vehicle detail. 
+3. Reviews timeline. 
+4. Navigates to exact event or violation as needed. 
+ 
+6.8 Notifications page: /notifications 
+Purpose 
+Show all user-relevant alerts in a dedicated workspace. 
+Main features 
+• Unread and all notifications 
+• Filter by type 
+• Filter by severity 
+• Mark as read 
+• Mark all as read 
+• Open source object from notification 
+Notification types 
+• New violation 
+• Unpaid vehicle detected 
+• Repeated plate alert 
+
+===== PAGE 19 =====
+
+• System ingestion error 
+• Rule/config change 
+• Assignment/update notice 
+• Test event notice if test mode visibility is enabled 
+Route behavior 
+A notification click routes the user to the most relevant object: 
+• Violation notification -> violation detail 
+• Event processing error -> event detail or system status 
+• Rule change -> rules detail 
+• System alert -> system status 
+The earlier product concept explicitly included app-based staff alerts after unpaid 
+detection, so notifications are not optional UI polish; they are a required core flow.  
+ 
+7. Admin and Configuration Pages 
+7.1 Rules page: /rules 
+Purpose 
+Allow authorized admins to view and manage parking rules. 
+Main list sections 
+• Lot-wide rules 
+• Grace period config 
+• Permit/allowlist rules 
+• Duplicate suppression settings 
+• Notification routing rules 
+• Enforcement hours 
+Page actions 
+• Create rule 
+• Edit rule 
+• Activate/deactivate rule 
+• View rule history 
+• Search/filter rules 
+
+===== PAGE 20 =====
+
+User path 
+1. Admin opens Rules. 
+2. Views active rules. 
+3. Opens a rule. 
+4. Edits and saves. 
+5. System records audit entry. 
+Guardrails 
+• Changes must require confirmation. 
+• Important rules should show effective time. 
+• Validation must prevent invalid values. 
+ 
+7.2 Rule Details/Edit page: /rules/:ruleId 
+Purpose 
+Show and edit one rule. 
+Sections 
+• Rule metadata 
+• Current value/config 
+• Scope 
+• Status 
+• Audit history 
+• Save/cancel controls 
+Save behavior 
+On save: 
+• Validate inputs 
+• Persist changes 
+• Create audit entry 
+• Show success feedback 
+• Refresh dependent views where possible 
+ 
+
+===== PAGE 21 =====
+
+7.3 Users page: /users 
+Purpose 
+Allow admin management of users and roles. 
+Main features 
+• Users list 
+• Search by name/email 
+• Role filter 
+• Status filter 
+• Invite or add user 
+• Deactivate/reactivate user 
+• Open user detail 
+User row data 
+• Name 
+• Email 
+• Role 
+• Status 
+• Notification preferences summary 
+• Last login if tracked 
+User path 
+1. Admin views all users. 
+2. Opens a user. 
+3. Changes role or status. 
+4. Saves changes. 
+5. Audit trail updates. 
+ 
+7.4 User Details page: /users/:userId 
+Purpose 
+Show one user’s profile and admin controls. 
+
+===== PAGE 22 =====
+
+Sections 
+• Profile info 
+• Role 
+• Access scope 
+• Notification preferences 
+• Account status 
+• Last login 
+• Audit history 
+Actions 
+• Change role 
+• Activate/deactivate 
+• Reset access if allowed 
+• Adjust notification preferences 
+ 
+7.5 Settings page: /settings 
+Purpose 
+Hold application-level and lot-level configuration that is not best represented as a rule 
+entry. 
+Settings groups 
+• Lot profile 
+• Operational defaults 
+• Notification defaults 
+• Environment labels 
+• Source metadata defaults 
+• Time zone 
+• Retention and visibility defaults if required for MVP 
+Guardrails 
+• Only admins 
+• Clearly label test vs production values 
+• Confirm destructive changes 
+
+===== PAGE 23 =====
+
+ 
+7.6 System Status page: /system-status 
+Purpose 
+Show whether ParkingSol is healthy and ready to trust operationally. 
+Sections 
+• Backend health 
+• Last event received 
+• Last successful processing time 
+• Last failed processing time 
+• Firestore connectivity summary 
+• Notification system health 
+• Deployment/environment info 
+• Event source mode: Test/Postman or Live/UniFi 
+Why this page matters 
+Because MVP starts with Postman and later moves to live source integration, users need 
+a clear page that says whether the system is receiving and processing events correctly. 
+Support/Admin actions 
+• View recent processing failures 
+• Copy diagnostic IDs 
+• View environment badge 
+• Open recent test events 
+• Possibly resend a test event if implemented 
+ 
+7.7 Profile page: /profile 
+Purpose 
+Let a user manage their personal account settings. 
+Sections 
+• Name 
+• Email 
+
+===== PAGE 24 =====
+
+• Password change link 
+• Notification preferences 
+• Sign out 
+Notification preferences 
+At minimum: 
+• In-app alerts on/off by type 
+• Immediate vs summary if simple enough 
+• Critical alerts forced on for some roles if policy requires 
+ 
+8. Cross-Page User Paths 
+This section defines the exact journeys through the app. 
+8.1 First-time admin login path 
+1. Admin receives credentials or invite. 
+2. Admin logs in at /login. 
+3. Admin lands on /dashboard. 
+4. Admin sees empty or near-empty system state. 
+5. Admin goes to /settings to confirm lot info. 
+6. Admin goes to /rules to configure core parking rules. 
+7. Admin goes to /users to verify or add users. 
+8. Admin goes to /system-status to verify environment is in test mode. 
+9. Admin uses Postman externally to trigger test events. 
+10. Admin returns to /events and /dashboard to validate incoming data. 
+11. Admin opens /violations to confirm non-compliant flows work. 
+12. Admin reviews /notifications to confirm alert delivery behavior. 
+This is the initial implementation and setup journey. 
+ 
+8.2 Operator daily flow 
+1. Operator logs in. 
+2. Operator lands on /dashboard. 
+3. Operator checks summary cards and open violations. 
+4. Operator clicks into /violations if there are unresolved items. 
+
+===== PAGE 25 =====
+
+5. Operator opens /violations/:violationId. 
+6. Operator reviews reason and related event. 
+7. Operator moves to /vehicles/:plate if more context is needed. 
+8. Operator acknowledges, resolves, or escalates the violation. 
+9. Operator returns to /violations or /dashboard. 
+10. Meanwhile, live updates continue to flow in. 
+This should be the most frictionless path in the app. 
+ 
+8.3 Support/testing flow with Postman 
+1. Support user logs in. 
+2. Support user opens /system-status. 
+3. Confirms environment is test mode and backend is healthy. 
+4. Sends a test event via Postman to the ingestion endpoint. 
+5. Opens /events to see the event appear. 
+6. Opens /events/:eventId to verify normalized data and decision. 
+7. If unpaid, opens /violations/:violationId. 
+8. Opens /notifications to verify alert generation. 
+9. Opens /dashboard to confirm counters updated. 
+10. Repeats tests for paid, unpaid, duplicate, invalid, and exit scenarios. 
+This flow is essential because the current MVP intentionally uses Postman as the stand-
+in for the future live source. 
+ 
+8.4 Violation response flow 
+1. User receives alert in notification bell or Notifications page. 
+2. User clicks the alert. 
+3. App routes to /violations/:violationId. 
+4. User reviews violation summary and linked event. 
+5. User optionally opens related vehicle history. 
+6. User chooses an action: acknowledge, resolve, dismiss, or escalate. 
+7. System confirms action and records audit trail. 
+8. App updates counts on Dashboard and Violations pages. 
+9. Notification state updates as needed. 
+ 
+
+===== PAGE 26 =====
+
+8.5 Vehicle investigation flow 
+1. User hears or receives a plate number from staff. 
+2. User opens global search or /vehicles. 
+3. Searches by plate. 
+4. Routes to /vehicles/:plate. 
+5. Reviews current status, recent events, and violations. 
+6. Navigates to related event or violation for detail. 
+7. Returns to vehicle page or Dashboard. 
+ 
+8.6 Rule change flow 
+1. Admin opens /rules. 
+2. Selects existing rule or creates one. 
+3. Makes changes. 
+4. Saves. 
+5. System validates values. 
+6. Audit entry is recorded. 
+7. Success feedback appears. 
+8. Subsequent event processing reflects updated rule behavior. 
+ 
+9. System-Driven Flows Without Manual Navigation 
+Not every important app flow starts with a click. Some begin when the backend receives 
+an event. 
+9.1 Paid event system flow 
+1. Event arrives through ingestion endpoint. 
+2. Backend validates payload. 
+3. Event is normalized. 
+4. Plate is checked for active payment/authorization. 
+5. Decision engine marks event compliant. 
+6. Event record is stored. 
+7. Dashboard counters and event stream update. 
+8. Vehicle history updates. 
+9. No violation is created. 
+10. No urgent operator action is required. 
+
+===== PAGE 27 =====
+
+This follows the earlier system design in which the backend checks whether a plate has 
+an active payment and records a lightweight event when compliant.  
+ 
+9.2 Unpaid event system flow 
+1. Event arrives through ingestion endpoint. 
+2. Backend validates payload. 
+3. Event is normalized. 
+4. Plate lookup finds no valid active payment/authorization. 
+5. Rule engine evaluates grace period and other exemptions. 
+6. If non-compliant, a violation is created. 
+7. Notification record is created. 
+8. Dashboard updates. 
+9. Violations page updates. 
+10. Notifications page and bell update. 
+11. Vehicle page now reflects open non-compliance state. 
+This reflects the earlier operational concept in which unpaid vehicles trigger a violation-
+style record and a staff-facing alert path.  
+ 
+9.3 Duplicate event suppression flow 
+1. Event arrives. 
+2. Backend detects same plate and same event pattern within configured duplicate 
+window. 
+3. Event is recorded with duplicate-suppressed outcome or merged logic. 
+4. Dashboard may show it in event history but should not create repeated noise. 
+5. No duplicate violation should be created unless the system detects meaningful 
+state change. 
+ 
+9.4 Invalid payload flow 
+1. Bad payload arrives. 
+2. Validation fails. 
+3. API returns error. 
+4. Failure is logged. 
+5. System status reflects processing issue if needed. 
+
+===== PAGE 28 =====
+
+6. Admin/support user can inspect failure context. 
+ 
+9.5 Permission denial flow 
+1. User attempts to access admin-only route. 
+2. Route guard checks role. 
+3. User is redirected to /unauthorized or back to dashboard. 
+4. App does not leak restricted data. 
+ 
+10. Page-Level State Rules 
+Every page should define clear UI states. 
+Required state types 
+• Loading 
+• Empty 
+• Success 
+• Error 
+• Permission denied 
+• No search results 
+• Archived/not found where applicable 
+Example rules 
+• Dashboard with no events: show onboarding message 
+• Events list with no matches: show filter reset option 
+• Violations detail not found: show safe back path 
+• System status error: show last successful update plus warning 
+• Notifications empty: show “You’re all caught up” state 
+ 
+11. Mobile and Responsive Behavior 
+ParkingSol MVP is a web app first, but key flows must still work on narrower screens. 
+
+===== PAGE 29 =====
+
+Responsive priorities 
+• Login works on mobile width 
+• Dashboard summary remains usable 
+• Violations list remains readable 
+• Violation detail actions remain accessible 
+• Navigation becomes collapsible drawer 
+• Tables may collapse into card views if necessary 
+Non-priority for MVP 
+• Perfect tablet optimization 
+• Deep mobile-first interaction redesign 
+• Native app conventions 
+ 
+12. Flow Exclusions 
+To keep the app flow clean and achievable in the MVP window, the following are 
+excluded from APP_FLOW unless later added: 
+• Public driver portal 
+• Customer self-service payment flow 
+• Native mobile app navigation 
+• Camera management pages 
+• Billing/invoicing pages 
+• Legal citation workflows 
+• Advanced report builder 
+• Enterprise multi-tenant self-onboarding 
+• Complex map-based lot visualization 
+• AI-generated recommendation interfaces 
+ 
+13. Final Flow Contract 
+ParkingSol’s application flow is built around one central operational truth: 
+An event comes in, the system decides what it means, the right records 
+update, and the right users can immediately see and act on the result. 
+
+===== PAGE 30 =====
+
+That means the MVP navigation must always support these actions with minimal 
+friction: 
+• Log in. 
+• See current lot state. 
+• Watch live events. 
+• Identify unpaid vehicles. 
+• Review and act on violations. 
+• Search vehicle history. 
+• Receive alerts. 
+• Configure rules and users. 
+• Verify system health. 
+• Move from test-mode Postman events to future live-source readiness without 
+changing the user-facing operating model. 
+This is the required app flow for ParkingSol. If the implemented UI does not support 
+these paths clearly, then the product is not complete, even if the backend logic exists. 
+ 

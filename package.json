@@ -1,0 +1,42 @@
+{
+  "name": "parking-sol",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/web",
+    "functions",
+    "shared"
+  ],
+  "engines": {
+    "node": "20.19.0",
+    "npm": "10.8.2"
+  },
+  "scripts": {
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && npm run test:rules",
+    "build": "npm run build --workspaces --if-present",
+    "test:api": "npm run test:api --workspace functions",
+    "test:rules": "cmd /d /s /c scripts\\run-rules-tests.cmd",
+    "newman": "npm run newman --workspace functions",
+    "test:e2e": "npm run test:e2e --workspace apps/web",
+    "emu:start": "npx firebase emulators:start --project parking-sol-local --import=./emulator-data/baseline --export-on-exit=./emulator-data/_last",
+    "emu:reset": "node scripts/emu-reset.mjs",
+    "emu:baseline:refresh": "node scripts/refresh-emulator-baseline.mjs",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "4.0.1",
+    "eslint": "9.22.0",
+    "firebase-tools": "13.35.1",
+    "husky": "9.1.7",
+    "lint-staged": "15.4.3",
+    "prettier": "3.5.3",
+    "typescript": "5.8.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,md,css}": [
+      "prettier --write"
+    ]
+  }
+}

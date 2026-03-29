@@ -6,37 +6,118 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // Core operational collections require authentication.
-    match /events/{docId} {
+    function hasGlobalRole(role) {
+      return isSignedIn() && currentUser().data.globalRole == role;
+    }
+
+    function isAdminLike() {
+      return hasGlobalRole("admin") || hasGlobalRole("super_admin");
+    }
+
+    function hasLotAccess(lotId) {
+      let accessId = "access_" + request.auth.uid + "_" + lotId;
+      return isSignedIn() &&
+        exists(
+          /databases/$(database)/documents/userLotAccess/$(accessId)
+        );
+    }
+
+    function canReadLot(lotId) {
+      return isAdminLike() || hasLotAccess(lotId);
+    }
+
+    match /organizations/{organizationId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isAdminLike();
     }
 
-    match /violations/{docId} {
+    match /lots/{lotId} {
+      allow read: if canReadLot(lotId);
+      allow write: if isAdminLike();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdminLike());
+      allow write: if isAdminLike();
+    }
+
+    match /userLotAccess/{accessId} {
+      allow read: if isSignedIn() &&
+        (isAdminLike() || resource.data.userId == request.auth.uid);
+      allow write: if isAdminLike();
+    }
+
+    match /sources/{sourceId} {
+      allow read: if isSignedIn() && canReadLot(resource.data.lotId);
+      allow write: if isAdminLike();
+    }
+
+    match /rules/{ruleId} {
+      allow read: if isSignedIn() && canReadLot(resource.data.lotId);
+      allow write: if isAdminLike();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isSignedIn() && canReadLot(resource.data.lotId);
+      allow write: if isAdminLike();
+    }
+
+    match /permits/{permitId} {
+      allow read: if isSignedIn() && canReadLot(resource.data.lotId);
+      allow write: if isAdminLike();
+    }
+
+    match /events/{eventId} {
+      allow read: if isSignedIn() && canReadLot(resource.data.lotId);
+      allow write: if false;
+    }
+
+    match /vehicleStates/{vehicleStateId} {
+      allow read: if isSignedIn() && canReadLot(resource.data.lotId);
+      allow write: if false;
+    }
+
+    match /parkingSessions/{sessionId} {
+      allow read: if isSignedIn() && canReadLot(resource.data.lotId);
+      allow write: if false;
+    }
+
+    match /violations/{violationId} {
+      allow read: if isSignedIn() && canReadLot(resource.data.lotId);
+      allow write: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() &&
+        (resource.data.targetUserId == request.auth.uid || isAdminLike());
+      allow update: if isSignedIn() &&
+        resource.data.targetUserId == request.auth.uid &&
+        request.resource.data.keys().hasOnly(["isRead", "readAt", "updatedAt", "targetUserId", "id", "organizationId", "lotId", "type", "title", "message", "severity", "linkedEntityType", "linkedEntityId", "createdAt"]);
+      allow create, delete: if false;
+    }
+
+    match /auditLogs/{auditId} {
+      allow read: if isSignedIn() && (isAdminLike() || hasGlobalRole("support"));
+      allow write: if false;
+    }
+
+    match /systemConfig/{configId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isAdminLike();
     }
 
-    match /parkingEntries/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    match /apiClients/{clientId} {
+      allow read, write: if isAdminLike();
     }
 
-    match /paidSessions/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    match /processingLocks/{lockId} {
+      allow read, write: if false;
     }
 
-    match /plateIndex/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    // Default deny for all remaining paths.
     match /{document=**} {
       allow read, write: if false;
     }

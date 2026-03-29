@@ -64,6 +64,17 @@ node_modules/
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
 
 # dataconnect generated files
 .dataconnect
+
+# Monorepo build outputs
+dist/
+lib/
+apps/web/dist/
+functions/lib/
+emulator-data/_last/
+
+.vercel

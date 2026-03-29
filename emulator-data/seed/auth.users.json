@@ -1,0 +1,22 @@
+{
+  "users": [
+    {
+      "uid": "uid_admin_001",
+      "email": "admin@parkingsol.local",
+      "password": "Password123!",
+      "displayName": "Admin User"
+    },
+    {
+      "uid": "uid_operator_001",
+      "email": "operator@parkingsol.local",
+      "password": "Password123!",
+      "displayName": "Operator User"
+    },
+    {
+      "uid": "uid_support_001",
+      "email": "support@parkingsol.local",
+      "password": "Password123!",
+      "displayName": "Support User"
+    }
+  ]
+}

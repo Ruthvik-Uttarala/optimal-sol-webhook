@@ -1,5 +1,11 @@
 {
   "projects": {
-    "default": "optimal-sol-webhook-demo"
-  }
+    "default": "optimal-sol-webhook-demo",
+    "dev": "parking-sol-dev",
+    "staging": "parking-sol-staging",
+    "prod": "parking-sol-prod",
+    "ParkSol": "payment-yveiv5"
+  },
+  "targets": {},
+  "etags": {}
 }

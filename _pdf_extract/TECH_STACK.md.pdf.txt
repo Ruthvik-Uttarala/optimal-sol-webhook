@@ -1,0 +1,736 @@
+
+
+===== PAGE 1 =====
+
+TECH_STACK.md 
+TECH_STACK.md 
+1. Document Purpose 
+This document defines the exact technical stack for ParkingSol. It exists to eliminate 
+ambiguity, prevent AI tools from inventing architecture, and give both human 
+developers and coding agents a locked implementation baseline. If a package, service, 
+runtime, framework, or tooling choice is not defined here, it should not be introduced 
+without updating this document first. 
+This is not a vague “use React and Firebase” stack note. This is the canonical technical 
+contract for the current ParkingSol MVP. Its job is to make sure the product is built the 
+same way every time, across local development, AI-assisted coding, QA, deployment, 
+and future maintenance. 
+ParkingSol’s current product direction is already clear from the earlier research and 
+scope decisions: 
+• ParkingSol is not building custom OCR or camera-side LPR. 
+• ParkingSol begins once a plate event already exists. 
+• ParkingSol is building a rules engine, parking intelligence layer, violations 
+workflow, live dashboard, user notifications, and a multi-user operational web 
+app. 
+• The first full working slice is Postman -> webhook/API -> Firebase Cloud 
+Functions -> Firestore -> decision engine -> live dashboard -> 
+notifications. 
+• Frontend must be TypeScript-based. 
+• Backend must use Firebase. 
+• Database must use Firestore. 
+• Hosting for the frontend must use Vercel. 
+• AWS is removed from MVP. 
+• The implementation must be production-minded enough to be wired to UniFi 
+later without re-architecting the whole system. 
+The earlier R&D already centered the product on a Firebase-backed workflow where 
+plate events are received, payment status is checked, unpaid vehicles generate alerts, 
+and staff use an app-facing interface to respond. This stack document updates that 
+architecture for the current pivot by replacing FlutterFlow with a TypeScript web 
+
+===== PAGE 2 =====
+
+frontend and removing AWS from the MVP while keeping Firebase as the core 
+operational backend.  
+This document has four goals: 
+1. Lock exact versions for all code-managed dependencies that matter. 
+2. Define which services are mandatory and which are optional. 
+3. Standardize project structure so AI tools do not improvise. 
+4. Protect the 72-hour delivery window by choosing the simplest architecture that 
+still supports a real deployment. 
+ 
+2. Final Architecture Decision 
+ParkingSol will use a split frontend/backend architecture: 
+• Frontend: Vite + React + TypeScript web app deployed on Vercel. 
+• Backend: Firebase Cloud Functions written in TypeScript. 
+• Database: Firestore. 
+• Authentication: Firebase Authentication. 
+• Primary notification mechanism for MVP: Firestore-backed in-app 
+notifications. 
+• Testing: Postman collections plus backend/frontend test automation. 
+• Source control: GitHub. 
+• Future event source: UniFi webhook, with Postman used first to simulate that 
+event source. 
+This is intentionally not a “full-stack Next.js app.” Next.js is currently on 16.2.1 on npm, 
+and the official installation docs say the App Router uses built-in React canary releases 
+rather than simply following the declared React package version. For ParkingSol, that 
+adds unnecessary framework behavior and version ambiguity when the frontend is 
+primarily an authenticated operations dashboard and the backend is already being 
+handled by Firebase Cloud Functions.   
+Because ParkingSol’s frontend is a dashboard application with authenticated routes, live 
+Firestore subscriptions, admin pages, and operational tables, a React SPA is the fastest 
+and most deterministic path to delivery. Since exact version pinning matters more here 
+than SSR, SEO, or server components, Vite is the better fit for this MVP. 
+The architecture is therefore: 
+
+===== PAGE 3 =====
+
+Browser -> Vite React app on Vercel -> Firebase Auth -> Firebase Cloud 
+Functions API -> Firestore -> real-time subscriptions back to frontend 
+That architecture satisfies the product needs without introducing extra rendering layers, 
+duplicate backend logic, or ambiguous server/client boundaries. 
+ 
+3. Locked Runtime Standards 
+These runtime standards apply to the entire repository. 
+3.1 Node.js version 
+Locked version: 20.19.0 
+ParkingSol standardizes on Node 20.19.0 for local development, CI, frontend builds, 
+and backend functions deployment. Vite’s compatibility note requires Node 20.19+ or 
+22.12+, and Firebase documents full Cloud Functions support for Node 20 and 22, with 
+Node 18 deprecated. 
+Why Node 20.19.0 
+• It satisfies Vite’s floor. 
+• It aligns with Firebase-supported runtimes. 
+• It avoids moving to Node 22 during a time-constrained MVP. 
+• It reduces version mismatch across frontend and backend. 
+• It is modern enough for native fetch, modern ESM compatibility, and clean 
+TypeScript tooling. 
+3.2 Package manager 
+Locked version: npm 10.8.2 
+ParkingSol will use npm, not pnpm or yarn, for MVP. This reduces setup variance for AI 
+tools, developers, CI runners, and Vercel builds. The repo must include a committed 
+package-lock.json, and no dependency should be installed without that lockfile being 
+updated and committed. 
+3.3 TypeScript version 
+Locked version: 5.8.2 
+Next.js documentation says its minimum TypeScript version is 5.1.0, while the current 
+TypeScript npm page shows 6.0.2 as latest. ParkingSol will deliberately standardize on 
+
+===== PAGE 4 =====
+
+TypeScript 5.8.2 instead of jumping to 6.0, because the goal is stability and tooling 
+compatibility during a 72-hour production sprint, not adopting the newest compiler 
+immediately.  
+3.4 Module system 
+Standard: ESM-first where supported, TypeScript compiled to modern Node-
+compatible output. 
+3.5 Version policy 
+ParkingSol uses exact versions, not broad ranges, for core dependencies. That means: 
+• Use "18.2.0", not "^18.2.0". 
+• Use "7.2.2", not "^7.2.2". 
+• Use "12.11.0", not "latest". 
+This policy is non-negotiable for the MVP because version drift is one of the fastest ways 
+AI-assisted development starts generating different code on different machines. 
+ 
+4. Frontend Stack 
+4.1 Frontend framework choice 
+Chosen stack: Vite 8.0.3 + React 18.2.0 + React DOM 18.2.0 + TypeScript 
+5.8.2 
+Vite’s npm package lists 8.0.3 as the latest published version, and React’s official 
+versions page includes 18.2.0. ParkingSol will lock to these versions because they 
+support a fast dashboard-style application while keeping React fully explicit instead of 
+relying on framework-managed React canaries. 
+4.2 Why Vite over Next.js 
+ParkingSol is not choosing Next.js for MVP, even though Next.js is current and fully 
+capable. The official Next.js installation docs state that App Router uses built-in React 
+canary releases, and Next.js currently expects a modern Node environment with a 
+minimum of 20.9. That is useful for many products, but not ideal here because 
+ParkingSol’s key requirements are exact React version pinning, deterministic client 
+routing, fast dashboard delivery, and a clearly separated Firebase backend.  
+ParkingSol does not need: 
+
+===== PAGE 5 =====
+
+• SEO-first routing. 
+• Server Components. 
+• SSR-heavy content rendering. 
+• Hybrid server/client data fetching for public pages. 
+• Next-specific middleware complexity for the MVP. 
+ParkingSol does need: 
+• Fast SPA development. 
+• Clear client-side route control. 
+• Predictable deployment. 
+• Simple environment variable handling. 
+• Easy handoff to AI tools without framework-specific surprises. 
+For that reason, the frontend stack is: 
+• vite: 8.0.3 
+• react: 18.2.0 
+• react-dom: 18.2.0 
+• typescript: 5.8.2 
+4.3 Frontend routing 
+Chosen package: react-router-dom 7.13.2 
+The npm page lists react-router-dom at 7.13.2, and the official React Router site 
+describes v7 as a non-breaking upgrade path from v6. That makes it a safe choice for a 
+route-heavy dashboard app where we need explicit page-level paths such as 
+/dashboard, /events, /violations/:id, and /rules. 
+Why React Router 
+• The app is a classic authenticated dashboard. 
+• Route behavior needs to map exactly to APP_FLOW.md. 
+• Protected routes and nested layouts are straightforward. 
+• Dynamic route parameters for vehicles, events, and violations are native. 
+• The app does not need a file-system routing framework. 
+4.4 Frontend state management 
+ParkingSol should use a layered state approach: 
+
+===== PAGE 6 =====
+
+• Server state / async cache: @tanstack/react-query 5.66.9 
+• UI/local global state: zustand 5.0.3 
+• Form state: react-hook-form 7.54.2 
+• Validation schemas: zod 3.24.2 
+This is intentional. Firestore real-time subscriptions already solve part of the data-sync 
+problem, so ParkingSol should not introduce Redux unless a proven need appears later. 
+Zustand is enough for global UI state such as selected lot, drawer state, filters, and auth-
+adjacent client state. React Query handles REST-style calls to Cloud Functions 
+endpoints and any non-realtime data fetches cleanly. Zod provides shared validation 
+contracts across frontend and backend. 
+4.5 Firebase client SDK on frontend 
+Chosen package: firebase 12.11.0 
+The npm package page lists the Firebase JavaScript SDK at 12.11.0. ParkingSol will use 
+this single client SDK package on the frontend for:  
+• Firebase Authentication 
+• Firestore reads/subscriptions 
+• Optional Firebase Storage access if evidence snapshots are added later 
+• Optional Cloud Messaging only if web push is added after MVP 
+4.6 Styling system 
+Chosen packages 
+• tailwindcss 3.4.17 
+• postcss 8.4.49 
+• autoprefixer 10.4.20 
+• clsx 2.1.1 
+ParkingSol will use Tailwind CSS for speed, consistency, and AI-friendly UI generation. 
+This is the best fit for the 72-hour build because it lets the team encode the dashboard 
+design system directly into reusable components without a separate large CSS 
+architecture. 
+The styling strategy is: 
+• Tailwind utility classes for layout and spacing. 
+• Shared design tokens in Tailwind config. 
+
+===== PAGE 7 =====
+
+• Reusable app components in src/components. 
+• No ad hoc inline styles except for exceptional dynamic cases. 
+• No component library that locks the project into opinionated abstractions unless 
+specifically approved later. 
+4.7 Frontend component strategy 
+ParkingSol will use a custom lightweight component system, not a large 
+enterprise component framework. This means: 
+• Build Button, Badge, Card, Table, Input, Modal, Drawer, Toast, Tabs, and 
+FilterBar as internal components. 
+• Keep them small and typed. 
+• Use composition instead of heavy abstraction. 
+• Maintain one source of truth for spacing, typography, color, and status semantics. 
+This is important because ParkingSol’s screens are operational dashboards, not 
+marketing pages. The design system should support status-heavy UI: 
+• paid 
+• unpaid 
+• pending 
+• acknowledged 
+• resolved 
+• error 
+• warning 
+• test mode 
+• production mode 
+4.8 Frontend data display libraries 
+For MVP, do not add large visualization libraries unless they serve a real immediate 
+need. If basic charts are required: 
+• recharts 2.15.1 
+If charts are not needed in Sprint 1, leave this out completely. 
+4.9 Frontend notification UI 
+For in-app toast and transient notices: 
+• sonner 2.0.1 
+
+===== PAGE 8 =====
+
+For persistent notifications, use Firestore documents and render them directly in-app 
+rather than overbuilding web-push infrastructure inside the 72-hour timeline. 
+ 
+5. Backend Stack 
+5.1 Backend runtime and deployment model 
+Platform: Firebase Cloud Functions 
+Runtime: Node.js 20 
+Language: TypeScript 
+Firebase documents that Cloud Functions fully supports Node 20 and 22, and that Node 
+18 is deprecated. ParkingSol will therefore use Node 20 Cloud Functions only.  
+5.2 Cloud Functions SDK 
+Chosen package: firebase-functions 7.2.2 
+The npm page lists firebase-functions at 7.2.2. ParkingSol will pin to this exact 
+version and use HTTP-triggered functions for:  
+• webhook/event ingestion 
+• admin APIs 
+• notification-triggering endpoints where needed 
+• support/test endpoints only if explicitly enabled in non-production environments 
+5.3 Admin SDK 
+Chosen package: firebase-admin 13.7.0 
+The npm page lists firebase-admin at 13.7.0. This package will be the backend’s 
+server-side access layer for:  
+• Firestore 
+• Authentication admin actions 
+• Optional Storage access 
+• Server-side timestamping 
+• Role-aware user management 
+5.4 API framework inside functions 
+Chosen packages 
+
+===== PAGE 9 =====
+
+• express 4.21.2 
+• cors 2.8.5 
+ParkingSol will use Express inside Firebase Functions rather than many disconnected 
+single-purpose handlers. This gives the backend a consistent API surface and keeps 
+routes grouped logically: 
+• /api/events 
+• /api/violations 
+• /api/vehicles 
+• /api/rules 
+• /api/users 
+• /api/system 
+• /api/test 
+This matters because ParkingSol is closer to an operations API than a single webhook 
+endpoint. Express makes middleware, auth guards, logging, validation, and versioned 
+routes easier to manage. 
+5.5 Backend validation and shared types 
+Chosen packages 
+• zod 3.24.2 
+• uuid 11.1.0 
+All inbound payloads must be validated with Zod before entering business logic. This 
+includes: 
+• Postman event payloads 
+• future UniFi webhook payloads 
+• rule create/update payloads 
+• violation action payloads 
+• user role update payloads 
+Payload validation is a core architectural rule, not a nice-to-have. If validation is 
+skipped, the rules engine becomes impossible to trust. 
+5.6 Logging and observability 
+ParkingSol will use: 
+
+===== PAGE 10 =====
+
+• native firebase-functions/logger 
+• structured JSON-style logging 
+• request IDs 
+• event IDs 
+• user IDs when relevant 
+• environment label in logs 
+Do not introduce third-party logging platforms in the MVP unless a real blocker 
+appears. Use Firebase-native logs first and keep log messages structured enough to filter 
+by event, violation, route, or failure reason. 
+5.7 Business logic layering 
+The backend codebase must be separated into the following layers: 
+• routes/ — Express route definitions 
+• controllers/ — request handlers 
+• services/ — domain logic 
+• repositories/ — Firestore read/write access 
+• schemas/ — Zod contracts 
+• types/ — shared domain types 
+• utils/ — reusable helpers 
+• config/ — environment and constants 
+• middleware/ — auth, role checks, request IDs, error wrappers 
+Do not place all logic inside index.ts. That is exactly the kind of structure that becomes 
+unmaintainable and causes AI tools to improvise. 
+5.8 Idempotency and duplicate handling 
+ParkingSol’s backend must enforce duplicate-event protection. This is part of the 
+backend stack decision because Firestore schema, route handling, and service design all 
+depend on it. 
+Required implementation patterns: 
+• unique external event ID if available 
+• deterministic fallback dedupe key if external ID missing 
+• duplicate suppression window logic in service layer 
+• no direct “create violation blindly” code path 
+ 
+
+===== PAGE 11 =====
+
+6. Firebase Services Stack 
+6.1 Firestore 
+Database: Cloud Firestore 
+Firestore is the system of record for the MVP. The earlier R&D already treated Firestore 
+as the place for paid plate records, event records, and violation records. That still holds, 
+except AWS-specific evidence paths are removed and ParkingSol now centers all MVP 
+data in Firebase-managed services only.  
+6.2 Firestore collection model 
+Initial required top-level collections: 
+• users 
+• organizations 
+• lots 
+• sources 
+• rules 
+• payments 
+• permits 
+• events 
+• vehicleStates 
+• violations 
+• notifications 
+• auditLogs 
+• systemConfig 
+This is not the full schema document, but the tech stack needs to lock the database 
+direction so code generation remains aligned. 
+6.3 Authentication 
+Service: Firebase Authentication 
+Frontend auth will use the Firebase client SDK, while backend verification and admin 
+actions will use the Admin SDK. Role management should be implemented using 
+Firestore-backed user profile data and, if needed, Firebase custom claims for high-level 
+access control. 
+
+===== PAGE 12 =====
+
+6.4 Storage 
+Service: Firebase Storage 
+MVP use: optional, only if evidence snapshots or attachments are added 
+Because AWS is removed, Firebase Storage is the correct evidence-storage fallback if the 
+MVP needs image artifacts later. However, image storage is not required for Sprint 1 if 
+the current Postman-based testing only validates event processing, decisioning, 
+violations, and notifications. 
+6.5 Notifications 
+For MVP, notifications will use two layers: 
+1. Persistent in-app notifications stored in Firestore. 
+2. UI-level toast notifications triggered in the web app when relevant Firestore 
+changes arrive. 
+Do not make Firebase Cloud Messaging a hard dependency for MVP web delivery unless 
+push is explicitly required in the immediate sprint. In-app notifications are faster to 
+implement, easier to QA, and directly aligned with the dashboard-first product 
+direction. 
+ 
+7. Hosting, Deployment, and Environments 
+7.1 Frontend hosting 
+Platform: Vercel 
+ParkingSol’s frontend will be deployed to Vercel only. This keeps the web layer easy to 
+preview, easy to roll back, and cleanly separated from Firebase backend deployment 
+concerns. 
+7.2 Backend hosting 
+Platform: Firebase Cloud Functions 
+ParkingSol’s backend will deploy only through Firebase tooling. Do not deploy the API 
+through Vercel serverless functions, because that would split backend logic across 
+platforms and create unnecessary confusion. 
+7.3 Environment model 
+Required environments: 
+
+===== PAGE 13 =====
+
+• local 
+• development 
+• staging 
+• production 
+At minimum for the MVP sprint, development and production must be supported 
+cleanly. If time is tight, staging can be mapped to a protected preview environment 
+rather than a full separate stack, but the config model must still anticipate it. 
+7.4 Environment variable rules 
+Frontend variables must use a frontend-safe prefix and include only public 
+configuration: 
+• Firebase web config 
+• API base URL 
+• environment label 
+Backend secrets must remain server-side only: 
+• service credentials if needed 
+• internal test keys 
+• webhook shared secrets 
+• admin override tokens 
+No secret may be exposed in the Vercel frontend bundle. 
+7.5 CI/CD 
+Recommended pipeline: 
+• GitHub push -> lint -> typecheck -> tests -> build -> deploy preview 
+• protected branch merge -> production deploy 
+For the 72-hour sprint, the minimum CI requirements are: 
+• frontend install/build check 
+• backend install/build check 
+• typecheck 
+• one basic test pass 
+• deployment script success 
+ 
+
+===== PAGE 14 =====
+
+8. Testing Stack 
+8.1 API testing 
+Primary tool: Postman 
+Collection format: v2.1 
+Postman is the official stand-in for UniFi during MVP development. This is not 
+temporary chaos; it is a deliberate integration simulation strategy so the whole system 
+can be completed before hardware is live. 
+Required Postman collections: 
+• valid paid entry event 
+• valid unpaid entry event 
+• duplicate event 
+• exit event 
+• invalid payload 
+• unauthorized request 
+• rule-sensitive edge case event 
+8.2 CLI API regression testing 
+Chosen tool: newman 6.2.1 
+Newman should run the Postman collection in CI so event-flow regressions are caught 
+early. 
+8.3 Unit and integration tests 
+Chosen package: vitest 3.0.5 
+Vitest is recommended for both frontend and backend TypeScript tests because it is fast, 
+Vite-native on the frontend, and lightweight enough for a 72-hour build. Use it for: 
+• rule evaluation tests 
+• payload validation tests 
+• duplicate suppression tests 
+• route guard tests 
+• utility tests 
+8.4 Frontend E2E testing 
+Chosen package: playwright 1.51.1 
+
+===== PAGE 15 =====
+
+Playwright is recommended for a minimal but real browser path: 
+• login 
+• dashboard load 
+• live events render 
+• violation detail open 
+• notification read flow 
+If time becomes tight, keep Playwright coverage minimal and prioritize backend 
+decisioning tests plus Postman/Newman regression runs. 
+ 
+9. Developer Experience and Quality Tooling 
+9.1 Linting 
+Chosen package: eslint 9.22.0 
+The official Next docs note that linting is now run via direct lint scripts rather than being 
+automatically handled by framework build steps, which reinforces the broader principle 
+that linting should be explicit and script-driven. ParkingSol will apply that same 
+principle even though it uses Vite: linting must be a standalone command and part of 
+CI, not a side effect developers forget to run.  
+9.2 Formatting 
+Chosen package: prettier 3.5.3 
+Formatting must be automated and non-negotiable. AI-generated code becomes 
+dramatically harder to review when formatting is inconsistent. 
+9.3 Git hooks 
+Chosen packages 
+• husky 9.1.7 
+• lint-staged 15.4.3 
+Pre-commit checks should run: 
+• ESLint on changed TS/TSX files 
+• Prettier formatting 
+• optional targeted tests on changed files if performance allows 
+
+===== PAGE 16 =====
+
+9.4 Import aliases 
+Use: 
+• @/ for frontend source imports 
+• @shared/ for cross-project shared types if a shared package is created 
+No deep relative imports like ../../../../components/Button. 
+ 
+10. Repository Structure 
+ParkingSol should use a single GitHub repository with a clear two-application structure. 
+Recommended structure: 
+text 
+parking-sol/ 
+  apps/ 
+    web/ 
+      src/ 
+        app/ 
+        components/ 
+        features/ 
+        hooks/ 
+        layouts/ 
+        lib/ 
+        pages/ 
+        routes/ 
+        services/ 
+        store/ 
+        types/ 
+        utils/ 
+      public/ 
+      index.html 
+      package.json 
+      tsconfig.json 
+      vite.config.ts 
+  functions/ 
+    src/ 
+      config/ 
+      controllers/ 
+
+===== PAGE 17 =====
+
+      middleware/ 
+      repositories/ 
+      routes/ 
+      schemas/ 
+      services/ 
+      types/ 
+      utils/ 
+      index.ts 
+    package.json 
+    tsconfig.json 
+  shared/ 
+    src/ 
+      types/ 
+      constants/ 
+      schemas/ 
+    package.json 
+    tsconfig.json 
+  postman/ 
+    ParkingSol.postman_collection.json 
+    ParkingSol.postman_environment.json 
+  .nvmrc 
+  package.json 
+  package-lock.json 
+  README.md 
+ 
+Why this structure 
+• It separates web and backend concerns cleanly. 
+• It makes AI generation safer. 
+• It supports shared contracts. 
+• It reduces accidental circular dependencies. 
+• It keeps deployment boundaries obvious. 
+ 
+11. Exact Package Versions 
+Below is the canonical version lock for the MVP. 
+
+===== PAGE 18 =====
+
+11.1 Root / shared tooling 
+json 
+{ 
+  "node": "20.19.0", 
+  "npm": "10.8.2", 
+  "typescript": "5.8.2", 
+  "eslint": "9.22.0", 
+  "prettier": "3.5.3", 
+  "husky": "9.1.7", 
+  "lint-staged": "15.4.3" 
+} 
+ 
+11.2 Frontend dependencies 
+json 
+{ 
+  "vite": "8.0.3", 
+  "react": "18.2.0", 
+  "react-dom": "18.2.0", 
+  "react-router-dom": "7.13.2", 
+  "firebase": "12.11.0", 
+  "@tanstack/react-query": "5.66.9", 
+  "zustand": "5.0.3", 
+  "react-hook-form": "7.54.2", 
+  "zod": "3.24.2", 
+  "axios": "1.8.4", 
+  "tailwindcss": "3.4.17", 
+  "postcss": "8.4.49", 
+  "autoprefixer": "10.4.20", 
+  "clsx": "2.1.1", 
+  "sonner": "2.0.1" 
+} 
+ 
+11.3 Frontend dev dependencies 
+json 
+{ 
+  "@vitejs/plugin-react": "5.0.0", 
+
+===== PAGE 19 =====
+
+  "vitest": "3.0.5", 
+  "@testing-library/react": "16.2.0", 
+  "@testing-library/jest-dom": "6.6.3", 
+  "@testing-library/user-event": "14.6.1", 
+  "jsdom": "26.0.0" 
+} 
+ 
+11.4 Backend dependencies 
+json 
+{ 
+  "firebase-functions": "7.2.2", 
+  "firebase-admin": "13.7.0", 
+  "express": "4.21.2", 
+  "cors": "2.8.5", 
+  "zod": "3.24.2", 
+  "uuid": "11.1.0", 
+  "dayjs": "1.11.13" 
+} 
+ 
+11.5 Backend dev dependencies 
+json 
+{ 
+  "typescript": "5.8.2", 
+  "tsx": "4.19.3", 
+  "vitest": "3.0.5", 
+  "supertest": "7.0.0", 
+  "@types/express": "5.0.0", 
+  "@types/cors": "2.8.17", 
+  "@types/node": "22.13.10", 
+  "eslint": "9.22.0" 
+} 
+ 
+11.6 Testing dependencies 
+json 
+{ 
+  "newman": "6.2.1", 
+
+===== PAGE 20 =====
+
+  "playwright": "1.51.1" 
+} 
+ 
+These versions are the implementation standard. If one package must move, the change 
+must be deliberate and committed with updated lockfiles. 
+ 
+12. Explicit Tech Decisions 
+12.1 We are using Vite, not Next.js 
+Even though Next.js is current and powerful, ParkingSol is not using it for the MVP. The 
+relevant factual reasons are that Next.js is now on 16.2.1, its official docs set a Node 20.9 
+minimum, and its App Router uses built-in React canary releases. ParkingSol needs a 
+strict React 18.2.0 lock, faster dashboard-only delivery, and no framework ambiguity, so 
+Vite is the correct choice.   
+12.2 We are using React 18.2.0, not React 19 
+React’s official versions history includes 18.2.0, and npm now shows newer React 
+releases exist. ParkingSol intentionally stays on 18.2.0 for MVP because ecosystem 
+predictability matters more than adopting the newest major during a compressed 
+delivery cycle. 
+12.3 We are using Firebase, not a custom Node server on another host 
+The backend requirement is already set: Firebase Cloud Functions plus Firestore. That 
+stays fixed. ParkingSol is not spinning up Express on EC2, Railway, Render, or Vercel 
+backend functions for the MVP. 
+12.4 We are using Firestore, not SQL 
+Firestore is already the agreed database and matches the event-driven, document-
+oriented operational model established in the prior R&D. ParkingSol is therefore not 
+introducing PostgreSQL, Prisma, Supabase, or MySQL in the MVP.  
+12.5 We are using Vercel only for frontend hosting 
+Do not split frontend and backend logic across Vercel functions and Firebase functions. 
+That creates duplicate API layers, duplicate env handling, and unnecessary confusion. 
+
+===== PAGE 21 =====
+
+12.6 We are not using AWS in MVP 
+AWS was part of earlier exploration for violation evidence and monitoring, but it has 
+been explicitly removed from the current MVP direction. ParkingSol must not include 
+S3, CloudWatch, Rekognition, Lambda, or any AWS-specific deployment step in this 
+build.  
+12.7 We are not using FlutterFlow 
+The earlier R&D referenced FlutterFlow in the original concept, but the current pivot 
+has removed it in favor of a TypeScript web frontend. This stack document locks that 
+decision permanently for the MVP.  
+ 
+13. Done Means This Stack Is Actually Implemented 
+The tech stack is only real when the repository reflects it exactly. ParkingSol is not 
+“using this stack” because someone wrote it in a document. It is using this stack only 
+when all of the following are true: 
+• .nvmrc is set to 20.19.0 
+• frontend installs and builds under Node 20.19.0 
+• backend installs and deploys under Node 20 runtime 
+• exact dependency versions are pinned in package.json 
+• package-lock.json is committed 
+• frontend deploys to Vercel successfully 
+• backend deploys to Firebase successfully 
+• Postman collection hits the live backend endpoint successfully 
+• Firestore documents update correctly 
+• dashboard renders live data correctly 
+• notifications render correctly 
+• CI uses the same Node version as local dev 
+• GitHub contains the complete working codebase 
+If the implemented repo diverges from this document, the repo is wrong, not the 
+document. 
+ 
+14. Final Technical Standard 
+ParkingSol MVP will be built as a Vite 8.0.3 + React 18.2.0 + TypeScript 5.8.2 
+frontend on Vercel, backed by Firebase Cloud Functions on Node 20 using 
+
+===== PAGE 22 =====
+
+firebase-functions 7.2.2 and firebase-admin 13.7.0, with Firestore as the 
+database and Firebase Authentication for access control. The Firebase JavaScript 
+SDK is pinned to 12.11.0, React Router is pinned to 7.13.2, and the whole project 
+standardizes on Node 20.19.0 because that satisfies both Vite’s current compatibility 
+floor and Firebase’s supported Cloud Functions runtimes. 
+This is the full ParkingSol MVP technical foundation. It is intentionally simple, explicit, 
+and constrained so the product can be built end to end in the available time without 
+framework drift, dependency drift, or AI-generated architectural improvisation. 
+ 

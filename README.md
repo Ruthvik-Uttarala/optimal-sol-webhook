@@ -31,6 +31,8 @@ docs            # Environment, secrets, baseline runbooks
 - `VITE_FIREBASE_APP_ID`
 - `VITE_API_BASE_URL`
 - `VITE_ENV_LABEL`
+- `VITE_ENABLE_PUBLIC_SIGNUP`
+- `VITE_APP_BASE_URL`
 
 ### Backend (`functions/.env.<project>` or environment)
 
@@ -118,6 +120,7 @@ Postman assets:
 - `npm run build --workspace apps/web`
 - Import repo in Vercel and set root to repository root with `vercel.json`.
 - Configure frontend env vars in Vercel environments (`development`, `preview`, `production`).
+- Ensure Firebase Authentication authorized domains include the deployed frontend domains you plan to use for password-reset and signup validation.
 
 See [docs/ENVIRONMENT_MATRIX.md](docs/ENVIRONMENT_MATRIX.md) for promotion and rollback.
 

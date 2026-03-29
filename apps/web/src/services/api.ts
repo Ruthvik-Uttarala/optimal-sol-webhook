@@ -13,7 +13,7 @@ api.interceptors.request.use(async (config) => {
   const session = useSessionStore.getState();
   const headers = { ...(config.headers || {}) } as Record<string, string>;
 
-  if (session.authMode === "firebase" && firebaseAuth?.currentUser) {
+  if (firebaseAuth?.currentUser) {
     headers.Authorization = `Bearer ${await firebaseAuth.currentUser.getIdToken()}`;
   } else if (session.user) {
     headers["x-test-user"] = JSON.stringify({

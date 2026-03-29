@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AppShell } from "../layouts/AppShell";
 import { useSessionBootstrap } from "../hooks/useSessionBootstrap";
+import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
+import { getAuthenticatedDestination, isOperationalUser } from "../lib/authSession";
 import { useSessionStore } from "../store/useSessionStore";
 import type { GlobalRole } from "../types/app";
 import { HomePage } from "../pages/HomePage";
@@ -28,6 +30,7 @@ import { useApiQuery } from "../hooks/useApiQuery";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const user = useSessionStore((state) => state.user);
+  const authMode = useSessionStore((state) => state.authMode);
   const isBootstrapped = useSessionStore((state) => state.isBootstrapped);
   const location = useLocation();
 
@@ -36,6 +39,9 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   }
 
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+  if (!isOperationalUser(user) && authMode === "firebase") {
+    return <Navigate to="/unauthorized" replace state={{ from: location }} />;
+  }
   return children;
 }
 
@@ -44,23 +50,28 @@ function RequireRole({ allowed, children }: { allowed: GlobalRole[]; children: J
   const isBootstrapped = useSessionStore((state) => state.isBootstrapped);
   if (!isBootstrapped) return <div className="card">Loading session...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (!user.role) return <Navigate to="/unauthorized" replace />;
   if (user.role === "super_admin" || allowed.includes(user.role)) return children;
   return <Navigate to="/unauthorized" replace />;
 }
 
 function NotificationCounterSync() {
+  useRealtimeNotifications();
+
   const user = useSessionStore((state) => state.user);
+  const authMode = useSessionStore((state) => state.authMode);
   const setUnreadCount = useSessionStore((state) => state.setUnreadCount);
 
   const notifications = useApiQuery<Array<Record<string, unknown>>>(["notifications"], "/notifications", {
-    refetchInterval: 5000
+    refetchInterval: 5000,
+    enabled: Boolean(user && authMode !== "firebase")
   });
 
   useEffect(() => {
-    if (notifications.data) {
+    if (authMode !== "firebase" && notifications.data) {
       setUnreadCount(notifications.data.filter((row) => !row.isRead).length);
     }
-  }, [notifications.data, setUnreadCount]);
+  }, [authMode, notifications.data, setUnreadCount]);
 
   if (!user) return null;
   return null;
@@ -72,12 +83,15 @@ function Bootstrapper() {
 }
 
 export function AppRouter() {
+  const user = useSessionStore((state) => state.user);
+  const destination = getAuthenticatedDestination(user);
+
   return (
     <>
       <Bootstrapper />
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={destination ? <Navigate to={destination} replace /> : <LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />

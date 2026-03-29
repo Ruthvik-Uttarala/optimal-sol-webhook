@@ -78,6 +78,7 @@ export function buildApp(repo: IDataRepository = createRepository("firestore")) 
   const app = express();
 
   const auth = createAuthMiddleware(repo);
+  const selfServiceAuth = createAuthMiddleware(repo, { allowMissingRole: true });
 
   const systemController = wrapController(createSystemController(repo));
   const meController = wrapController(createMeController(repo));
@@ -105,16 +106,19 @@ export function buildApp(repo: IDataRepository = createRepository("firestore")) 
   publicEventsRouter.post("/webhooks/unifi/events", eventsController.ingestUnifi);
   app.use("/api/v1", publicEventsRouter);
 
+  const selfServiceRouter = express.Router();
+  selfServiceRouter.use(selfServiceAuth);
+  const meRouter = buildMeRoutes(meController);
+  meRouter.patch("/me/preferences", validateBody(updatePreferencesSchema), meController.patchPreferences);
+  selfServiceRouter.use(meRouter);
+  app.use("/api/v1", selfServiceRouter);
+
   const securedRouter = express.Router();
   securedRouter.use(auth);
   securedRouter.use(requireLotScope());
   const systemRouter = buildSystemRoutes(systemController);
   systemRouter.patch("/system/config", requireRole(["admin", "super_admin"]), validateBody(patchSystemConfigSchema), systemController.patchConfig);
   securedRouter.use(systemRouter);
-
-  const meRouter = buildMeRoutes(meController);
-  meRouter.patch("/me/preferences", validateBody(updatePreferencesSchema), meController.patchPreferences);
-  securedRouter.use(meRouter);
 
   const manualEventsRouter = express.Router();
   manualEventsRouter.post("/events/manual", requireRole(["admin", "support"]), validateBody(ingestPayloadSchema), eventsController.manualEvent);

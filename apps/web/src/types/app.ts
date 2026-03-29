@@ -4,7 +4,7 @@ export interface SessionUser {
   uid: string;
   email: string;
   displayName: string;
-  role: GlobalRole;
+  role: GlobalRole | null;
   status?: string;
   defaultLotId?: string | null;
   defaultOrganizationId?: string | null;
@@ -24,4 +24,20 @@ export interface SessionProfile extends SessionUser {
   currentLotId?: string | null;
   currentOrganizationId?: string | null;
   authMode: "firebase" | "dev" | "guest";
+}
+
+export interface NotificationRecord {
+  id: string;
+  targetUserId?: string | null;
+  title?: string | null;
+  message?: string | null;
+  type?: string | null;
+  severity?: string | null;
+  isRead?: boolean;
+  readAt?: string | null;
+  linkedEntityType?: string | null;
+  linkedEntityId?: string | null;
+  entityRoute?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }

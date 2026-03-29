@@ -11,16 +11,19 @@ export function ProfilePage() {
   const user = useSessionStore((state) => state.user);
   const access = useSessionStore((state) => state.access);
   const currentLotId = useSessionStore((state) => state.currentLotId);
+  const updateUserPreferences = useSessionStore((state) => state.updateUserPreferences);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [soundEnabled, setSoundEnabled] = useState(Boolean(user?.notificationPreferences?.soundEnabled));
   const [digestEnabled, setDigestEnabled] = useState(Boolean(user?.notificationPreferences?.digestEnabled));
 
   async function savePreferences() {
-    await api.patch("/me/preferences", {
+    const nextPreferences = {
       soundEnabled,
       digestEnabled
-    });
+    };
+    await api.patch("/me/preferences", nextPreferences);
+    updateUserPreferences(nextPreferences);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["profile"] }),
       queryClient.invalidateQueries({ queryKey: ["me"] })

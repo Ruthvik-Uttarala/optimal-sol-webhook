@@ -23,7 +23,11 @@ function parseTestUserHeader(req: Request): { uid: string; email: string | null;
   }
 }
 
-export function createAuthMiddleware(repo: IDataRepository) {
+interface AuthOptions {
+  allowMissingRole?: boolean;
+}
+
+export function createAuthMiddleware(repo: IDataRepository, options: AuthOptions = {}) {
   return async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
     try {
       const testUser = parseTestUserHeader(req);
@@ -53,14 +57,14 @@ export function createAuthMiddleware(repo: IDataRepository) {
       const decoded = await admin.auth().verifyIdToken(token, true);
       const access = await repo.getUserAccess(decoded.uid);
       const role = access.role as GlobalRole | null;
-      if (!role) {
+      if (!role && !options.allowMissingRole) {
         throw new AppError(403, ERROR_CODES.FORBIDDEN, "No user role configured");
       }
 
       req.authContext = {
         uid: decoded.uid,
         email: decoded.email || null,
-        role,
+        role: role || null,
         lotIds: access.lotIds,
         organizationIds: access.organizationIds
       };
@@ -79,7 +83,7 @@ export function requireRole(roles: GlobalRole[]) {
       return;
     }
 
-    if (ctx.role === "super_admin" || roles.includes(ctx.role)) {
+    if (ctx.role && (ctx.role === "super_admin" || roles.includes(ctx.role))) {
       next();
       return;
     }

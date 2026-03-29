@@ -9,6 +9,7 @@ import { Button } from "../components/Button";
 import { useToast } from "../components/Toast";
 import { FilterBar } from "../components/FilterBar";
 import { Input } from "../components/Input";
+import { useSessionStore } from "../store/useSessionStore";
 
 export function NotificationsPage() {
   const [tab, setTab] = useState("Unread");
@@ -16,19 +17,23 @@ export function NotificationsPage() {
   const [severityFilter, setSeverityFilter] = useState("");
   const toast = useToast();
   const queryClient = useQueryClient();
+  const authMode = useSessionStore((state) => state.authMode);
+  const liveNotifications = useSessionStore((state) => state.notifications);
   const notifications = useApiQuery<Array<Record<string, unknown>>>(["notifications", tab], "/notifications", {
-    refetchInterval: 5000
+    refetchInterval: 5000,
+    enabled: authMode !== "firebase"
   });
+  const sourceRows = authMode === "firebase" ? liveNotifications : (notifications.data || []);
 
   const rows = useMemo(
     () =>
-      (notifications.data || []).filter((item) => {
+      sourceRows.filter((item) => {
         if (tab === "Unread" && item.isRead) return false;
         if (typeFilter && String(item.type || "") !== typeFilter) return false;
         if (severityFilter && String(item.severity || "") !== severityFilter) return false;
         return true;
       }),
-    [notifications.data, tab, typeFilter, severityFilter]
+    [severityFilter, sourceRows, tab, typeFilter]
   );
 
   return (
@@ -49,10 +54,12 @@ export function NotificationsPage() {
           <Button
             onClick={async () => {
               await api.post("/notifications/read-all");
-              await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-                queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-              ]);
+              if (authMode !== "firebase") {
+                await Promise.all([
+                  queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+                  queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+                ]);
+              }
               toast.success("Marked all as read");
             }}
           >
@@ -68,7 +75,7 @@ export function NotificationsPage() {
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <span>{String(row.type || "-")}</span>
                   <span>{String(row.severity || "info")}</span>
-                  <Link to={String(row.entityRoute || "#")} className="input">
+                  <Link to={String(row.entityRoute || "/notifications")} className="input">
                     Open linked entity
                   </Link>
                 </div>
@@ -76,10 +83,12 @@ export function NotificationsPage() {
               <Button
                 onClick={async () => {
                   await api.post(`/notifications/${row.id}/read`);
-                  await Promise.all([
-                    queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-                    queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-                  ]);
+                  if (authMode !== "firebase") {
+                    await Promise.all([
+                      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+                      queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+                    ]);
+                  }
                   toast.success("Marked as read");
                 }}
               >

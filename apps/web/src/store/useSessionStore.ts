@@ -1,15 +1,11 @@
 import { create } from "zustand";
-import type { SessionAccess, SessionProfile, SessionUser } from "../types/app";
+import type { NotificationRecord, SessionAccess, SessionProfile, SessionUser } from "../types/app";
+import { isDevFallbackEnabled } from "../lib/authSession";
 
 const DEV_SESSION_KEY = "parking_sol_user";
 
-function canUseDevFallback() {
-  const envLabel = (import.meta.env.VITE_ENV_LABEL || "").toLowerCase();
-  return import.meta.env.DEV || envLabel.includes("test") || envLabel.includes("dev") || envLabel.includes("preview");
-}
-
 function readCachedSession(): SessionProfile | null {
-  if (!canUseDevFallback()) return null;
+  if (!isDevFallbackEnabled()) return null;
   try {
     const raw = localStorage.getItem(DEV_SESSION_KEY);
     if (!raw) return null;
@@ -20,7 +16,7 @@ function readCachedSession(): SessionProfile | null {
 }
 
 function persistCachedSession(session: SessionProfile | null) {
-  if (!canUseDevFallback()) return;
+  if (!isDevFallbackEnabled()) return;
   if (session) {
     localStorage.setItem(DEV_SESSION_KEY, JSON.stringify(session));
   } else {
@@ -35,11 +31,14 @@ interface SessionState {
   currentOrganizationId: string | null;
   authMode: "firebase" | "dev" | "guest";
   unreadCount: number;
+  notifications: NotificationRecord[];
   isBootstrapped: boolean;
   setSession: (session: SessionProfile | null) => void;
   clearSession: () => void;
   signOut: () => void;
   setUnreadCount: (count: number) => void;
+  setNotifications: (notifications: NotificationRecord[]) => void;
+  updateUserPreferences: (preferences: Record<string, unknown>) => void;
   setBootstrapped: (value: boolean) => void;
 }
 
@@ -52,6 +51,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   currentOrganizationId: cachedSession?.currentOrganizationId || cachedSession?.defaultOrganizationId || null,
   authMode: cachedSession ? cachedSession.authMode || "dev" : "guest",
   unreadCount: 0,
+  notifications: [],
   isBootstrapped: false,
   setSession: (session) => {
     if (session) {
@@ -85,7 +85,9 @@ export const useSessionStore = create<SessionState>((set) => ({
       access: [],
       currentLotId: null,
       currentOrganizationId: null,
-      authMode: "guest"
+      authMode: "guest",
+      unreadCount: 0,
+      notifications: []
     });
     persistCachedSession(null);
   },
@@ -95,7 +97,9 @@ export const useSessionStore = create<SessionState>((set) => ({
       access: [],
       currentLotId: null,
       currentOrganizationId: null,
-      authMode: "guest"
+      authMode: "guest",
+      unreadCount: 0,
+      notifications: []
     });
     persistCachedSession(null);
   },
@@ -105,10 +109,29 @@ export const useSessionStore = create<SessionState>((set) => ({
       access: [],
       currentLotId: null,
       currentOrganizationId: null,
-      authMode: "guest"
+      authMode: "guest",
+      unreadCount: 0,
+      notifications: []
     });
     persistCachedSession(null);
   },
   setUnreadCount: (count) => set({ unreadCount: count }),
+  setNotifications: (notifications) =>
+    set({
+      notifications,
+      unreadCount: notifications.filter((item) => !item.isRead).length
+    }),
+  updateUserPreferences: (preferences) =>
+    set((state) => ({
+      user: state.user
+        ? {
+            ...state.user,
+            notificationPreferences: {
+              ...(state.user.notificationPreferences || {}),
+              ...preferences
+            }
+          }
+        : null
+    })),
   setBootstrapped: (value) => set({ isBootstrapped: value })
 }));

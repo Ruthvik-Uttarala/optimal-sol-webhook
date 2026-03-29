@@ -4,7 +4,7 @@ import { api } from "../services/api";
 export function useApiQuery<T>(
   key: unknown[],
   path: string,
-  options?: { params?: Record<string, unknown>; refetchInterval?: number }
+  options?: { params?: Record<string, unknown>; refetchInterval?: number; enabled?: boolean }
 ) {
   return useQuery({
     queryKey: key,
@@ -12,6 +12,7 @@ export function useApiQuery<T>(
       const response = await api.get(path, { params: options?.params });
       return response.data.data as T;
     },
-    refetchInterval: options?.refetchInterval
+    refetchInterval: options?.refetchInterval,
+    enabled: options?.enabled
   });
 }

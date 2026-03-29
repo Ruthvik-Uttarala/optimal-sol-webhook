@@ -10,6 +10,8 @@
 | `VITE_FIREBASE_APP_ID` | Platform | Vercel envs | Platform Admin | Public |
 | `VITE_API_BASE_URL` | Backend Lead | Vercel envs | Backend Lead + Platform Admin | Public |
 | `VITE_ENV_LABEL` | Platform | Vercel envs | Platform Admin | Public |
+| `VITE_ENABLE_PUBLIC_SIGNUP` | Product / Frontend | Vercel envs | Frontend Lead + Platform Admin | Public |
+| `VITE_APP_BASE_URL` | Frontend Lead | Vercel envs | Frontend Lead + Platform Admin | Public |
 | `FIREBASE_PROJECT_ID` | Platform | Firebase config and local `.env.<project>` | Platform Admin | Secret-ish |
 | `ENV_LABEL` | Platform | Firebase params and local `.env.<project>` | Platform Admin | Secret-ish |
 | `POSTMAN_CLIENT_SECRET` | Backend Lead | Firebase Secret Manager (`defineSecret`) | Backend Lead + Platform Admin | Secret |
@@ -20,3 +22,5 @@
 - Frontend variables are injected only via Vercel project environments.
 - Backend-only secrets stay server-side and must never be bundled in frontend code.
 - For Firebase Functions, sensitive values use parameterized secrets; project-specific `.env` files are local convenience only.
+- `VITE_APP_BASE_URL` must point at the deployed frontend origin for each Vercel environment so Firebase password-reset emails return users to `/reset-password`.
+- After changing any Vercel environment variable, trigger a new deployment before expecting the frontend to use the new value.

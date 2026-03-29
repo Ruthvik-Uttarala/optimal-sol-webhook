@@ -20,6 +20,6 @@ const items: NavItem[] = [
   { to: "/profile", label: "Profile", roles: ["operator", "admin", "manager", "support", "super_admin"] }
 ];
 
-export function useRoleNavigation(role: GlobalRole | undefined): NavItem[] {
+export function useRoleNavigation(role: GlobalRole | null | undefined): NavItem[] {
   return useMemo(() => items.filter((item) => (role ? item.roles.includes(role) : false)), [role]);
 }

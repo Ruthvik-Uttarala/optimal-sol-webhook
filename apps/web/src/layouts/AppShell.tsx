@@ -7,7 +7,7 @@ import { StatusChip } from "../components/Badge";
 import { firebaseAuth } from "../lib/firebase";
 import { signOut as firebaseSignOut } from "firebase/auth";
 
-function resolveSearchRoute(query: string, role: string | undefined): string | null {
+function resolveSearchRoute(query: string, role: string | null | undefined): string | null {
   const trimmed = query.trim();
   if (!trimmed) return null;
 
@@ -84,7 +84,7 @@ export function AppShell() {
             <button
               className="input"
               onClick={async () => {
-                if (authMode === "firebase" && firebaseAuth) {
+                if ((authMode === "firebase" || firebaseAuth?.currentUser) && firebaseAuth) {
                   await firebaseSignOut(firebaseAuth);
                 }
                 signOut();

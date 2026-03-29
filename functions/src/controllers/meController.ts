@@ -18,11 +18,33 @@ function getAuthContext(req: Request) {
   return authContext;
 }
 
+async function ensureUserProfile(repo: IDataRepository, authContext: ReturnType<typeof getAuthContext>) {
+  const existingProfile = await repo.getDoc<Record<string, unknown>>(COLLECTIONS.users, authContext.uid);
+  if (existingProfile) return existingProfile;
+
+  const createdAt = new Date().toISOString();
+  const nextProfile = {
+    id: authContext.uid,
+    email: authContext.email || null,
+    displayName: authContext.email || authContext.uid,
+    status: "pending_access",
+    globalRole: null,
+    defaultOrganizationId: authContext.organizationIds[0] || null,
+    defaultLotId: authContext.lotIds[0] || null,
+    notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
+    createdAt,
+    updatedAt: createdAt
+  };
+
+  await repo.setDoc(COLLECTIONS.users, authContext.uid, nextProfile, true);
+  return nextProfile;
+}
+
 export function createMeController(repo: IDataRepository) {
   return {
     me: async (req: Request, res: Response): Promise<void> => {
       const authContext = getAuthContext(req);
-      const profile = await repo.getDoc<Record<string, unknown>>(COLLECTIONS.users, authContext.uid);
+      const profile = await ensureUserProfile(repo, authContext);
       const accessRows = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.userLotAccess, {
         filters: [
           ["userId", "==", authContext.uid],
@@ -33,16 +55,11 @@ export function createMeController(repo: IDataRepository) {
       });
 
       sendSuccess(res, {
-        ...(profile || {
-          id: authContext.uid,
-          status: "active",
-          email: authContext.email || null,
-          displayName: authContext.email || authContext.uid
-        }),
+        ...profile,
         id: authContext.uid,
         email: profile?.email || authContext.email || null,
         displayName: profile?.displayName || authContext.email || authContext.uid,
-        status: profile?.status || "active",
+        status: profile?.status || (authContext.role ? "active" : "pending_access"),
         globalRole: profile?.globalRole || authContext.role,
         effectiveRole: profile?.globalRole || authContext.role,
         organizationIds: authContext.organizationIds,
@@ -63,6 +80,7 @@ export function createMeController(repo: IDataRepository) {
 
     patchPreferences: async (req: Request, res: Response): Promise<void> => {
       const authContext = getAuthContext(req);
+      await ensureUserProfile(repo, authContext);
       await repo.updateDoc(COLLECTIONS.users, authContext.uid, {
         notificationPreferences: req.body,
         updatedAt: new Date().toISOString()
@@ -84,6 +102,7 @@ export function createMeController(repo: IDataRepository) {
 
     access: async (req: Request, res: Response): Promise<void> => {
       const authContext = getAuthContext(req);
+      const profile = await ensureUserProfile(repo, authContext);
       const rows = await repo.listDocs(COLLECTIONS.userLotAccess, {
         filters: [
           ["userId", "==", authContext.uid],
@@ -94,10 +113,11 @@ export function createMeController(repo: IDataRepository) {
       });
       sendSuccess(res, {
         userId: authContext.uid,
-        effectiveRole: authContext.role,
-        defaultOrganizationId: authContext.organizationIds[0] || null,
-        defaultLotId: authContext.lotIds[0] || null,
-        currentLotId: authContext.lotIds[0] || null,
+        status: profile.status || (authContext.role ? "active" : "pending_access"),
+        effectiveRole: profile.globalRole || authContext.role,
+        defaultOrganizationId: profile.defaultOrganizationId || authContext.organizationIds[0] || null,
+        defaultLotId: profile.defaultLotId || authContext.lotIds[0] || null,
+        currentLotId: profile.defaultLotId || authContext.lotIds[0] || null,
         organizationIds: authContext.organizationIds,
         lotIds: authContext.lotIds,
         accessRecords: rows

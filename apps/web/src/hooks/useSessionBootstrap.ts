@@ -1,14 +1,10 @@
 import { useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { firebaseAuth } from "../lib/firebase";
+import { isDevFallbackEnabled } from "../lib/authSession";
 import { api } from "../services/api";
 import { useSessionStore } from "../store/useSessionStore";
 import type { SessionAccess, SessionProfile } from "../types/app";
-
-function isDevFallbackEnabled() {
-  const envLabel = (import.meta.env.VITE_ENV_LABEL || "").toLowerCase();
-  return import.meta.env.DEV || envLabel.includes("test") || envLabel.includes("dev") || envLabel.includes("preview");
-}
 
 function readStoredFallback(): SessionProfile | null {
   if (!isDevFallbackEnabled()) return null;
@@ -45,8 +41,8 @@ function mapFirebaseProfile(
     uid: String(me.id || me.uid || ""),
     email,
     displayName: String(me.displayName || me.email || email || "User"),
-    role: String(me.role || me.globalRole || "operator") as SessionProfile["role"],
-    status: String(me.status || "active"),
+    role: (me.role || me.globalRole || null) as SessionProfile["role"],
+    status: String(me.status || ((me.role || me.globalRole) ? "active" : "pending_access")),
     defaultLotId,
     defaultOrganizationId,
     notificationPreferences: (me.notificationPreferences as Record<string, unknown> | null) || null,
@@ -58,7 +54,6 @@ function mapFirebaseProfile(
 }
 
 export function useSessionBootstrap() {
-  const existingUser = useSessionStore((state) => state.user);
   const setSession = useSessionStore((state) => state.setSession);
   const clearSession = useSessionStore((state) => state.clearSession);
   const setBootstrapped = useSessionStore((state) => state.setBootstrapped);
@@ -67,7 +62,7 @@ export function useSessionBootstrap() {
     let active = true;
 
     if (!firebaseAuth) {
-      if (existingUser) {
+      if (useSessionStore.getState().user) {
         setBootstrapped(true);
         return () => {
           active = false;
@@ -90,9 +85,8 @@ export function useSessionBootstrap() {
       try {
         if (!active) return;
         if (!authUser) {
-          if (useSessionStore.getState().user) {
-            setBootstrapped(true);
-            return;
+          if (useSessionStore.getState().authMode === "firebase") {
+            clearSession();
           }
           const fallback = makeFallbackSession();
           if (fallback) {
@@ -104,12 +98,15 @@ export function useSessionBootstrap() {
           return;
         }
 
-        const [meResponse, accessResponse] = await Promise.all([api.get("/me"), api.get("/me/access")]);
+        const meResponse = await api.get("/me");
+        const accessResponse = await api.get("/me/access");
         const accessPayload = accessResponse.data.data;
         const accessItems = Array.isArray(accessPayload)
           ? accessPayload
           : Array.isArray(accessPayload?.items)
             ? accessPayload.items
+            : Array.isArray(accessPayload?.accessRecords)
+              ? accessPayload.accessRecords
             : [];
         const profile = mapFirebaseProfile(
           meResponse.data.data || {},
@@ -122,7 +119,7 @@ export function useSessionBootstrap() {
         setSession(profile);
       } catch {
         const fallback = makeFallbackSession();
-        if (fallback) {
+        if (fallback && useSessionStore.getState().authMode !== "firebase") {
           setSession(fallback);
         } else {
           clearSession();

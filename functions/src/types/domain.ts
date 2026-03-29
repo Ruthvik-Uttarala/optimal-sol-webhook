@@ -3,7 +3,7 @@ export type GlobalRole = "super_admin" | "admin" | "operator" | "manager" | "sup
 export interface AuthContext {
   uid: string;
   email: string | null;
-  role: GlobalRole;
+  role: GlobalRole | null;
   organizationIds: string[];
   lotIds: string[];
 }

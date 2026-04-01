@@ -127,10 +127,14 @@ describe("auth experience", () => {
     });
   });
 
-  it("renders the landing page for unauthenticated users", async () => {
-    renderWithProviders(<HomePage />);
-    expect(screen.getByRole("heading", { name: /see every plate event turn into an operational decision/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /login/i })).toBeInTheDocument();
+  it("redirects unauthenticated users from root to login", async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<div>Login target</div>} />
+      </Routes>
+    );
+    expect(await screen.findByText("Login target")).toBeInTheDocument();
   });
 
   it("redirects authenticated users away from home and login", async () => {
@@ -197,6 +201,17 @@ describe("auth experience", () => {
     vi.stubEnv("VITE_ENABLE_PUBLIC_SIGNUP", "true");
     renderWithProviders(<LoginPage />, ["/login?mode=signup"]);
     expect(screen.getByRole("button", { name: /create account/i })).toBeInTheDocument();
+  });
+
+  it("does not enable dev fallback auth from preview-like env labels alone", async () => {
+    vi.stubEnv("VITE_ENV_LABEL", "Preview");
+    renderWithProviders(
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<div>Login target</div>} />
+      </Routes>
+    );
+    expect(await screen.findByText("Login target")).toBeInTheDocument();
   });
 
   it("bootstraps the session from backend truth instead of placeholder state", async () => {

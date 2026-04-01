@@ -4,20 +4,53 @@ import { COLLECTIONS } from "../config/constants";
 import { sendSuccess } from "../utils/response";
 import { makePrefixedId } from "../utils/id";
 import { AppError } from "../utils/errors";
+import { scopedLotIds } from "../utils/access";
 
 export function createUsersController(repo: IDataRepository) {
   return {
-    listUsers: async (_req: Request, res: Response): Promise<void> => {
-      const rows = await repo.listDocs(COLLECTIONS.users, {
+    listUsers: async (req: Request, res: Response): Promise<void> => {
+      const rows = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.users, {
         orderBy: "createdAt",
         direction: "desc",
         limit: 200
       });
-      sendSuccess(res, rows);
+      const lotIds = scopedLotIds(req.authContext);
+      if (lotIds.length === 0 || req.authContext?.role === "super_admin") {
+        sendSuccess(res, rows);
+        return;
+      }
+
+      const accessRows = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.userLotAccess, {
+        filters: [["status", "==", "active"]],
+        limit: 500
+      });
+      const allowedUserIds = new Set(
+        accessRows
+          .filter((row) => lotIds.includes(String(row.lotId || "")))
+          .map((row) => String(row.userId || ""))
+      );
+      allowedUserIds.add(req.authContext?.uid || "");
+
+      sendSuccess(res, rows.filter((row) => allowedUserIds.has(String(row.id || ""))));
     },
 
     getUser: async (req: Request, res: Response): Promise<void> => {
-      const row = await repo.getDoc(COLLECTIONS.users, String(req.params.userId));
+      const row = await repo.getDoc<Record<string, unknown>>(COLLECTIONS.users, String(req.params.userId));
+      if (req.authContext?.role !== "super_admin") {
+        const lotIds = scopedLotIds(req.authContext);
+        const accessRows = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.userLotAccess, {
+          filters: [
+            ["userId", "==", String(req.params.userId)],
+            ["status", "==", "active"]
+          ]
+        });
+        const hasVisibleAccess =
+          String(req.params.userId) === req.authContext?.uid ||
+          accessRows.some((access) => lotIds.includes(String(access.lotId || "")));
+        if (!hasVisibleAccess) {
+          throw new AppError(403, "FORBIDDEN", "Lot scope denied");
+        }
+      }
       sendSuccess(res, row);
     },
 
@@ -99,11 +132,20 @@ export function createUsersController(repo: IDataRepository) {
     },
 
     userAccess: async (req: Request, res: Response): Promise<void> => {
-      const rows = await repo.listDocs(COLLECTIONS.userLotAccess, {
+      const rows = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.userLotAccess, {
         filters: [["userId", "==", String(req.params.userId)]],
         orderBy: "createdAt",
         direction: "desc"
       });
+      const lotIds = scopedLotIds(req.authContext);
+      if (lotIds.length > 0 && req.authContext?.role !== "super_admin") {
+        const visibleRows = rows.filter((row) => lotIds.includes(String(row.lotId || "")));
+        if (String(req.params.userId) !== req.authContext?.uid && visibleRows.length === 0) {
+          throw new AppError(403, "FORBIDDEN", "Lot scope denied");
+        }
+        sendSuccess(res, visibleRows);
+        return;
+      }
       sendSuccess(res, rows);
     },
 

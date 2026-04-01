@@ -6,6 +6,7 @@ import { AppError } from "../utils/errors";
 import { processIncomingEvent, reprocessEvent } from "../services/eventProcessingService";
 import { getPostmanClientSecret } from "../config/env";
 import { assertLotAccess, listScopedDocs, loadScopedDocById } from "../utils/access";
+import { ingestPayloadSchema } from "../schemas/contracts";
 
 export function createEventsController(repo: IDataRepository) {
   return {
@@ -26,7 +27,13 @@ export function createEventsController(repo: IDataRepository) {
     },
 
     ingestUnifi: async (req: Request, res: Response): Promise<void> => {
-      const body = {
+      const secret = req.header("x-api-client-secret") || "";
+      const verifiedByClient = await repo.verifyApiClientSecret("unifi", secret, "/api/v1/webhooks/unifi/events");
+      if (!verifiedByClient) {
+        throw new AppError(401, ERROR_CODES.UNAUTHORIZED, "Invalid API client secret");
+      }
+
+      const mappedBody = {
         sourceKey: req.body.sourceKey || "unifi-main-gate",
         externalEventId: req.body.externalEventId || req.body.eventId || null,
         eventType: req.body.eventType || (req.body.direction === "exit" ? "exit" : "entry"),
@@ -37,8 +44,12 @@ export function createEventsController(repo: IDataRepository) {
         direction: req.body.direction || "unknown",
         metadata: req.body.metadata || req.body
       };
+      const parsed = ingestPayloadSchema.safeParse(mappedBody);
+      if (!parsed.success) {
+        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, parsed.error.issues[0]?.message || "Invalid UniFi payload");
+      }
 
-      const result = await processIncomingEvent(repo, body, {
+      const result = await processIncomingEvent(repo, parsed.data, {
         actorUserId: null,
         via: "unifi",
         requestId: req.context.requestId

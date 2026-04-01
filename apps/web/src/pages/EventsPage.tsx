@@ -8,12 +8,14 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { useToast } from "../components/Toast";
+import { useSessionStore } from "../store/useSessionStore";
 
 export function EventsPage() {
   const [query, setQuery] = useState("");
+  const currentLotId = useSessionStore((state) => state.currentLotId);
   const toast = useToast();
-  const events = useApiQuery<Array<Record<string, unknown>>>(["events", query], "/events", {
-    params: query ? { plate: query } : { limit: 100 },
+  const events = useApiQuery<Array<Record<string, unknown>>>(["events", currentLotId, query], "/events", {
+    params: query ? { lotId: currentLotId, plate: query } : { lotId: currentLotId, limit: 100 },
     refetchInterval: 5000
   });
 
@@ -32,7 +34,9 @@ export function EventsPage() {
       <div className="page-head">
         <div>
           <h1 style={{ margin: 0 }}>Live Events</h1>
-          <p style={{ margin: "4px 0 0", color: "var(--text-secondary)" }}>Newest first, with processing result and related vehicle visibility.</p>
+          <p style={{ margin: "4px 0 0", color: "var(--text-secondary)" }}>
+            Newest first for {currentLotId || "all accessible lots"}, with decision status and linked operational context.
+          </p>
         </div>
       </div>
       <FilterBar>
@@ -49,7 +53,10 @@ export function EventsPage() {
             String(row.sourceDirection || "-"),
             String(row.plateConfidence ?? "-"),
             String(row.processingStatus || "-"),
-            <Badge label={String(row.decisionStatus || "-")} tone={(row.decisionStatus as "paid" | "pending" | "unpaid") || "info"} />,
+            <Badge
+              label={String(row.decisionStatus || "-")}
+              tone={row.decisionStatus === "paid" ? "paid" : row.decisionStatus === "unpaid" ? "unpaid" : "pending"}
+            />,
             row.violationId ? <Link to={`/violations/${row.violationId}`}>Open</Link> : "-",
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Link className="input" to={`/events/${row.id}`}>View</Link>

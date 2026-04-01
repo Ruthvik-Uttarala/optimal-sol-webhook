@@ -1,10 +1,7 @@
 import type { GlobalRole, SessionProfile, SessionUser } from "../types/app";
 
-const FALLBACK_ENV_MARKERS = ["test", "dev", "preview", "local"];
-
 export function isDevFallbackEnabled() {
-  const envLabel = (import.meta.env.VITE_ENV_LABEL || "").toLowerCase();
-  return import.meta.env.DEV || FALLBACK_ENV_MARKERS.some((marker) => envLabel.includes(marker));
+  return String(import.meta.env.VITE_ENABLE_DEV_AUTH_FALLBACK || "").toLowerCase() === "true";
 }
 
 export function isPublicSignupEnabled() {
@@ -17,7 +14,7 @@ export function getAppBaseUrl() {
     return configured.replace(/\/+$/, "");
   }
 
-  if (typeof window !== "undefined" && window.location.origin) {
+  if (import.meta.env.DEV && typeof window !== "undefined" && window.location.origin) {
     return window.location.origin.replace(/\/+$/, "");
   }
 

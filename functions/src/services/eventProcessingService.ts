@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { COLLECTIONS, ERROR_CODES } from "../config/constants";
 import { env } from "../config/env";
 import type { EventPayload, EventProcessResult, NormalizedEvent } from "../types/domain";
@@ -11,11 +12,79 @@ import { makePrefixedId } from "../utils/id";
 import { ID_PREFIX } from "../config/constants";
 
 dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface ProcessOptions {
   actorUserId: string | null;
   via: "postman" | "unifi" | "manual";
   requestId: string;
+}
+
+interface ActiveRule {
+  id: string;
+  type: string;
+  status: string;
+  priority: number;
+  conditions?: Record<string, unknown>;
+  actions?: Record<string, unknown>;
+}
+
+function numberFromRule(...values: unknown[]): number | null {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function stringArrayFromRule(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item || "").trim()).filter(Boolean);
+}
+
+function isOutsideEnforcementHours(capturedAtIso: string, timezoneName: string, rules: ActiveRule[]) {
+  const rule = rules.find((item) => item.type === "enforcement_hours");
+  if (!rule) return false;
+
+  const zoned = dayjs(capturedAtIso).tz(timezoneName);
+  const hour = zoned.hour();
+  const startHour = numberFromRule(
+    rule.conditions?.startHour,
+    rule.conditions?.startHourLocal,
+    rule.actions?.startHour
+  );
+  const endHour = numberFromRule(
+    rule.conditions?.endHour,
+    rule.conditions?.endHourLocal,
+    rule.actions?.endHour
+  );
+
+  if (startHour === null || endHour === null) return false;
+  if (startHour === endHour) return false;
+  if (startHour < endHour) {
+    return hour < startHour || hour >= endHour;
+  }
+  return hour < startHour && hour >= endHour;
+}
+
+function evaluateGracePeriod(capturedAtIso: string, sessionOpenedAt: string | null, rules: ActiveRule[]) {
+  const rule = rules.find((item) => item.type === "grace_period");
+  if (!rule || !sessionOpenedAt) return false;
+
+  const minutes = numberFromRule(
+    rule.conditions?.minutes,
+    rule.conditions?.graceMinutes,
+    rule.actions?.minutes
+  );
+
+  if (minutes === null || minutes <= 0) return false;
+  return dayjs(capturedAtIso).diff(dayjs(sessionOpenedAt), "minute", true) < minutes;
+}
+
+function resolveNotificationRoles(rules: ActiveRule[]) {
+  const routingRule = rules.find((item) => item.type === "notification_routing");
+  const roles = stringArrayFromRule(routingRule?.actions?.targetRoles || routingRule?.conditions?.targetRoles);
+  return roles.length > 0 ? roles : null;
 }
 
 function toIso(value: string): string {
@@ -58,7 +127,10 @@ export async function processIncomingEvent(
     throw new AppError(404, ERROR_CODES.SOURCE_INACTIVE, "Source key not active");
   }
 
-  const lot = await repo.getDoc<{ id: string; status: string }>(COLLECTIONS.lots, source.lotId);
+  const lot = await repo.getDoc<{ id: string; status: string; timezone?: string; duplicateWindowSecondsDefault?: number }>(
+    COLLECTIONS.lots,
+    source.lotId
+  );
   if (!lot || lot.status !== "active") {
     throw new AppError(404, ERROR_CODES.LOT_INACTIVE, "Lot not active");
   }
@@ -78,8 +150,25 @@ export async function processIncomingEvent(
     isTestEvent: options.via !== "unifi"
   };
 
+  const rules = await repo.listDocs<ActiveRule>(COLLECTIONS.rules, {
+    filters: [
+      ["lotId", "==", normalized.lotId],
+      ["status", "==", "active"]
+    ],
+    orderBy: "priority",
+    direction: "asc"
+  });
+  const duplicateWindowSeconds =
+    numberFromRule(
+      rules.find((rule) => rule.type === "duplicate_window")?.conditions?.seconds,
+      rules.find((rule) => rule.type === "duplicate_window")?.conditions?.windowSeconds,
+      rules.find((rule) => rule.type === "duplicate_window")?.actions?.seconds,
+      lot.duplicateWindowSecondsDefault,
+      env.defaultDuplicateWindowSeconds
+    ) || env.defaultDuplicateWindowSeconds;
+
   const dedupeKey = dedupeKeyFor(source.id, payload, normalizedPlate);
-  const lock = await repo.acquireProcessingLock(dedupeKey, payload.externalEventId || null, env.defaultDuplicateWindowSeconds);
+  const lock = await repo.acquireProcessingLock(dedupeKey, payload.externalEventId || null, duplicateWindowSeconds);
   if (!lock.acquired) {
     throw new AppError(409, ERROR_CODES.PROCESSING_LOCK_EXISTS, "Processing lock already exists");
   }
@@ -148,19 +237,6 @@ export async function processIncomingEvent(
       ],
       limit: 1
     });
-
-    const rules = await repo.listDocs<{ id: string; type: string; status: string; priority: number; conditions?: Record<string, unknown>; actions?: Record<string, unknown> }>(
-      COLLECTIONS.rules,
-      {
-        filters: [
-          ["lotId", "==", normalized.lotId],
-          ["status", "==", "active"]
-        ],
-        orderBy: "priority",
-        direction: "asc"
-      }
-    );
-
     const previousByDedupe = await repo.listDocs<{ id: string; capturedAt: string; violationId?: string | null }>(
       COLLECTIONS.events,
       {
@@ -178,6 +254,7 @@ export async function processIncomingEvent(
     const currentVehicle = await repo.getDoc<Record<string, unknown>>(COLLECTIONS.vehicleStates, vehicleStateId);
 
     let sessionId: string | null = null;
+    let sessionOpenedAt: string | null = null;
     if (normalized.eventType === "entry" || normalized.sourceDirection === "entry") {
       const openSessions = await repo.listDocs<{ id: string }>(COLLECTIONS.parkingSessions, {
         filters: [
@@ -192,6 +269,8 @@ export async function processIncomingEvent(
 
       if (openSessions.length > 0) {
         sessionId = openSessions[0].id;
+        const openSession = await repo.getDoc<Record<string, unknown>>(COLLECTIONS.parkingSessions, openSessions[0].id);
+        sessionOpenedAt = String(openSession?.openedAt || normalized.capturedAt);
       } else {
         const createdSession = await repo.createDoc("parkingSessions", {
           organizationId: normalized.organizationId,
@@ -211,6 +290,7 @@ export async function processIncomingEvent(
           durationMinutes: null
         });
         sessionId = createdSession.id;
+        sessionOpenedAt = normalized.capturedAt;
       }
     }
 
@@ -238,6 +318,7 @@ export async function processIncomingEvent(
           updatedAt: new Date().toISOString()
         });
         sessionId = openSessions[0].id;
+        sessionOpenedAt = openSessions[0].openedAt;
       }
     }
 
@@ -253,8 +334,23 @@ export async function processIncomingEvent(
     } else if (activePayments.length > 0) {
       decisionStatus = "paid";
       reasonCodes.push("payment_active");
+    } else if (isOutsideEnforcementHours(normalized.capturedAt, lot.timezone || "America/New_York", rules)) {
+      decisionStatus = "exempt";
+      reasonCodes.push("outside_enforcement_hours");
+    } else if (
+      normalized.eventType !== "entry" &&
+      normalized.sourceDirection !== "entry" &&
+      evaluateGracePeriod(normalized.capturedAt, sessionOpenedAt, rules)
+    ) {
+      decisionStatus = "pending_review";
+      reasonCodes.push("grace_period_active");
     } else {
-      const pendingRule = rules.find((rule) => rule.actions?.markPending === true || rule.conditions?.manualReview === true);
+      const pendingRule = rules.find(
+        (rule) =>
+          rule.actions?.markPending === true ||
+          rule.conditions?.manualReview === true ||
+          rule.actions?.createViolation === false
+      );
       if (pendingRule) {
         decisionStatus = "pending_review";
         reasonCodes.push("manual_review_rule");
@@ -265,6 +361,7 @@ export async function processIncomingEvent(
     }
 
     let violationId: string | null = null;
+    let createdViolationId: string | null = null;
     if (decisionStatus === "unpaid") {
       const existingOpen = await repo.listDocs<{ id: string }>(COLLECTIONS.violations, {
         filters: [
@@ -301,35 +398,53 @@ export async function processIncomingEvent(
           createdBySystem: true
         });
         violationId = violation.id;
+        createdViolationId = violation.id;
+      } else {
+        violationId = existingOpen[0].id;
       }
     }
 
     const notificationIds: string[] = [];
-    if (violationId) {
-      const accessRows = await repo.listDocs<{ userId: string; lotId: string; status: string }>(COLLECTIONS.userLotAccess, {
+    if (createdViolationId && !duplicate) {
+      const accessRows = await repo.listDocs<{ userId: string; lotId: string; status: string; roleWithinLot?: string | null }>(
+        COLLECTIONS.userLotAccess,
+        {
         filters: [
           ["lotId", "==", normalized.lotId],
           ["status", "==", "active"]
         ]
       });
+      const allowedRoles = resolveNotificationRoles(rules);
 
       for (const access of accessRows) {
+        if (allowedRoles && !allowedRoles.includes(String(access.roleWithinLot || ""))) {
+          continue;
+        }
         const notification = await repo.createDoc("notifications", {
           organizationId: normalized.organizationId,
           lotId: normalized.lotId,
           targetUserId: access.userId,
           type: "violation_created",
           title: `Violation created for ${normalizedPlate}`,
-          message: `Violation ${violationId} opened from event ${eventId}`,
+          message: `Violation ${createdViolationId} opened from event ${eventId}`,
           severity: "high",
           isRead: false,
           readAt: null,
           linkedEntityType: "violation",
-          linkedEntityId: violationId
+          linkedEntityId: createdViolationId
         });
         notificationIds.push(notification.id);
       }
     }
+
+    if (sessionId && violationId) {
+      await repo.updateDoc(COLLECTIONS.parkingSessions, sessionId, {
+        openViolationId: violationId,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    const currentOpenViolationId = violationId || (currentVehicle?.openViolationId as string | null) || null;
 
     await repo.setDoc(
       COLLECTIONS.vehicleStates,
@@ -358,7 +473,7 @@ export async function processIncomingEvent(
               : currentVehicle?.presenceStatus || "unknown",
         currentPaymentId: activePayments[0]?.id || null,
         currentPermitId: activePermits[0]?.id || null,
-        openViolationId: violationId,
+        openViolationId: currentOpenViolationId,
         lastEventId: eventId,
         lastSeenAt: normalized.capturedAt,
         lastEntryAt:

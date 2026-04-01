@@ -6,11 +6,13 @@ import { Input } from "../components/Input";
 import { Table } from "../components/Table";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { Badge } from "../components/Badge";
+import { useSessionStore } from "../store/useSessionStore";
 
 export function VehiclesPage() {
   const [query, setQuery] = useState("");
-  const vehicles = useApiQuery<Array<Record<string, unknown>>>(["vehicles", query], "/vehicles", {
-    params: query ? { plate: query } : { limit: 100 },
+  const currentLotId = useSessionStore((state) => state.currentLotId);
+  const vehicles = useApiQuery<Array<Record<string, unknown>>>(["vehicles", currentLotId, query], "/vehicles", {
+    params: query ? { lotId: currentLotId, plate: query } : { lotId: currentLotId, limit: 100 },
     refetchInterval: 5000
   });
 
@@ -29,7 +31,9 @@ export function VehiclesPage() {
       <div className="page-head">
         <div>
           <h1 style={{ margin: 0 }}>Vehicles</h1>
-          <p style={{ margin: "4px 0 0", color: "var(--text-secondary)" }}>Current vehicle state, payment/permit context, and linked events.</p>
+          <p style={{ margin: "4px 0 0", color: "var(--text-secondary)" }}>
+            Current vehicle state for {currentLotId || "all accessible lots"}, including payment, permit, presence, and open violation context.
+          </p>
         </div>
       </div>
       <FilterBar>

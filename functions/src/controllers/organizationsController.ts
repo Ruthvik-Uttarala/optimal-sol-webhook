@@ -3,6 +3,7 @@ import type { IDataRepository } from "../repositories/firestoreRepository";
 import { COLLECTIONS } from "../config/constants";
 import { sendSuccess } from "../utils/response";
 import { makePrefixedId } from "../utils/id";
+import { assertLotAccess, listScopedDocs, loadScopedDocById } from "../utils/access";
 
 export function createOrganizationsController(repo: IDataRepository) {
   return {
@@ -22,7 +23,7 @@ export function createOrganizationsController(repo: IDataRepository) {
     listLots: async (req: Request, res: Response): Promise<void> => {
       const filters: [string, FirebaseFirestore.WhereFilterOp, unknown][] = [];
       if (req.query.organizationId) filters.push(["organizationId", "==", req.query.organizationId]);
-      const rows = await repo.listDocs(COLLECTIONS.lots, {
+      const rows = await listScopedDocs(repo, COLLECTIONS.lots, req.authContext, {
         filters,
         orderBy: "createdAt",
         direction: "desc"
@@ -31,7 +32,7 @@ export function createOrganizationsController(repo: IDataRepository) {
     },
 
     getLot: async (req: Request, res: Response): Promise<void> => {
-      const row = await repo.getDoc(COLLECTIONS.lots, String(req.params.lotId));
+      const row = await loadScopedDocById<Record<string, unknown>>(repo, COLLECTIONS.lots, req.authContext, String(req.params.lotId));
       sendSuccess(res, row);
     },
 
@@ -77,6 +78,8 @@ export function createOrganizationsController(repo: IDataRepository) {
     },
 
     patchLot: async (req: Request, res: Response): Promise<void> => {
+      const existing = await loadScopedDocById<Record<string, unknown>>(repo, COLLECTIONS.lots, req.authContext, String(req.params.lotId));
+      assertLotAccess(req.authContext, String(existing?.lotId || req.params.lotId), "Lot scope denied");
       await repo.updateDoc(COLLECTIONS.lots, String(req.params.lotId), {
         ...req.body,
         updatedAt: new Date().toISOString()

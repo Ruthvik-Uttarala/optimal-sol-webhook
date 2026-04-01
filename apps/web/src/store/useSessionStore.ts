@@ -40,6 +40,7 @@ interface SessionState {
   setNotifications: (notifications: NotificationRecord[]) => void;
   updateUserPreferences: (preferences: Record<string, unknown>) => void;
   setBootstrapped: (value: boolean) => void;
+  setCurrentContext: (lotId: string | null, organizationId: string | null) => void;
 }
 
 const cachedSession = readCachedSession();
@@ -133,5 +134,10 @@ export const useSessionStore = create<SessionState>((set) => ({
           }
         : null
     })),
-  setBootstrapped: (value) => set({ isBootstrapped: value })
+  setBootstrapped: (value) => set({ isBootstrapped: value }),
+  setCurrentContext: (lotId, organizationId) =>
+    set({
+      currentLotId: lotId,
+      currentOrganizationId: organizationId
+    })
 }));

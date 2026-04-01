@@ -5,18 +5,36 @@ import { PageState } from "./common";
 import { Table } from "../components/Table";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
+import { useSessionStore } from "../store/useSessionStore";
 
 function summaryValue(value: unknown) {
   return typeof value === "number" ? value : 0;
 }
 
 export function DashboardPage() {
-  const metrics = useApiQuery<Record<string, number>>(["metrics"], "/system/metrics", { refetchInterval: 8000 });
-  const events = useApiQuery<Array<Record<string, unknown>>>(["events-preview"], "/events", { params: { limit: 5 }, refetchInterval: 5000 });
-  const violations = useApiQuery<Array<Record<string, unknown>>>(["violations-preview"], "/violations", { params: { limit: 5 }, refetchInterval: 5000 });
+  const currentLotId = useSessionStore((state) => state.currentLotId);
+  const lotParams = currentLotId ? { lotId: currentLotId } : undefined;
+  const metrics = useApiQuery<Record<string, number>>(["metrics", currentLotId], "/system/metrics", {
+    params: lotParams,
+    refetchInterval: 8000
+  });
+  const events = useApiQuery<Array<Record<string, unknown>>>(["events-preview", currentLotId], "/events", {
+    params: { ...lotParams, limit: 5 },
+    refetchInterval: 5000
+  });
+  const violations = useApiQuery<Array<Record<string, unknown>>>(["violations-preview", currentLotId], "/violations", {
+    params: { ...lotParams, limit: 5 },
+    refetchInterval: 5000
+  });
   const notifications = useApiQuery<Array<Record<string, unknown>>>(["notifications-preview"], "/notifications", { params: { limit: 5 }, refetchInterval: 5000 });
-  const status = useApiQuery<Record<string, unknown>>(["system-status-preview"], "/system/status", { refetchInterval: 10000 });
-  const vehicles = useApiQuery<Array<Record<string, unknown>>>(["vehicles-preview"], "/vehicles", { params: { limit: 25 }, refetchInterval: 10000 });
+  const status = useApiQuery<Record<string, unknown>>(["system-status-preview", currentLotId], "/system/status", {
+    params: lotParams,
+    refetchInterval: 10000
+  });
+  const vehicles = useApiQuery<Array<Record<string, unknown>>>(["vehicles-preview", currentLotId], "/vehicles", {
+    params: { ...lotParams, limit: 25 },
+    refetchInterval: 10000
+  });
 
   const unpaidVehicles = (vehicles.data || []).filter((row) => row.currentStatus === "unpaid" || row.openViolationId);
   const openViolations = (violations.data || []).filter((row) => row.status === "open" || row.status === "acknowledged" || row.status === "escalated");
@@ -26,7 +44,9 @@ export function DashboardPage() {
       <div className="page-head">
         <div>
           <h1 style={{ margin: 0 }}>Dashboard</h1>
-          <p style={{ margin: "4px 0 0", color: "var(--text-secondary)" }}>Operational snapshot with the latest events, violations, and system state.</p>
+          <p style={{ margin: "4px 0 0", color: "var(--text-secondary)" }}>
+            Operational snapshot for {currentLotId || "all accessible lots"} with live events, queue health, and operator attention items.
+          </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link to="/events" className="input">Live events</Link>
@@ -42,6 +62,7 @@ export function DashboardPage() {
           <Card title="Open Violations"><strong>{summaryValue(metrics.data?.activeOpenViolations)}</strong></Card>
           <Card title="Vehicles In Lot"><strong>{summaryValue(metrics.data?.vehiclesCurrentlyInLot)}</strong></Card>
           <Card title="Unread Alerts"><strong>{summaryValue(metrics.data?.unreadAlerts)}</strong></Card>
+          <Card title="Unpaid Vehicles"><strong>{summaryValue(metrics.data?.unpaidVehiclesNeedingAttention)}</strong></Card>
           <Card title="Processing Success"><strong>{summaryValue(metrics.data?.processingSuccess)}</strong></Card>
           <Card title="Processing Failures"><strong>{summaryValue(metrics.data?.processingFailureCount)}</strong></Card>
         </div>
@@ -54,7 +75,10 @@ export function DashboardPage() {
             rows={(events.data || []).map((row) => [
               <Link to={`/events/${row.id}`}>{String(row.id)}</Link>,
               String(row.normalizedPlate || "-"),
-              <Badge label={String(row.decisionStatus || "-")} tone={(row.decisionStatus as "paid" | "pending" | "unpaid") || "info"} />
+              <Badge
+                label={String(row.decisionStatus || "-")}
+                tone={row.decisionStatus === "paid" ? "paid" : row.decisionStatus === "unpaid" ? "unpaid" : "pending"}
+              />
             ])}
           />
         </Card>
@@ -91,6 +115,7 @@ export function DashboardPage() {
         <Card title="System Health" action={<Link to="/system-status">Details</Link>}>
           <div style={{ display: "grid", gap: 8 }}>
             <Badge label={String(status.data?.healthy ? "Healthy" : "Attention required")} tone={status.data?.healthy ? "paid" : "unpaid"} />
+            <div>Scope mode: {String(status.data?.scopeMode || "global")}</div>
             <div>Last event: {String(status.data?.lastEventReceived || "-")}</div>
             <div>Last success: {String(status.data?.lastSuccessfulProcessingTime || "-")}</div>
             <div>Last failure: {String(status.data?.lastFailedProcessingTime || "-")}</div>

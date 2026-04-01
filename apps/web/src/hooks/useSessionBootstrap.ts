@@ -24,7 +24,9 @@ function makeFallbackSession(): SessionProfile | null {
 function mapFirebaseProfile(
   me: Record<string, unknown>,
   access: SessionAccess[],
-  email: string
+  email: string,
+  previousLotId: string | null,
+  previousOrganizationId: string | null
 ): SessionProfile {
   const accessContext = (me.accessContext as Record<string, unknown> | undefined) || {};
   const defaultLotId =
@@ -37,6 +39,14 @@ function mapFirebaseProfile(
     (me.defaultOrganizationId as string | null | undefined) ||
     access[0]?.organizationId ||
     null;
+  const currentLotId =
+    (previousLotId && access.some((item) => item.lotId === previousLotId) && previousLotId) ||
+    defaultLotId;
+  const currentOrganizationId =
+    (previousOrganizationId &&
+      access.some((item) => item.organizationId === previousOrganizationId) &&
+      previousOrganizationId) ||
+    defaultOrganizationId;
   return {
     uid: String(me.id || me.uid || ""),
     email,
@@ -47,8 +57,8 @@ function mapFirebaseProfile(
     defaultOrganizationId,
     notificationPreferences: (me.notificationPreferences as Record<string, unknown> | null) || null,
     access,
-    currentLotId: defaultLotId,
-    currentOrganizationId: defaultOrganizationId,
+    currentLotId,
+    currentOrganizationId,
     authMode: "firebase"
   };
 }
@@ -60,6 +70,7 @@ export function useSessionBootstrap() {
 
   useEffect(() => {
     let active = true;
+    setBootstrapped(false);
 
     if (!firebaseAuth) {
       if (useSessionStore.getState().user) {
@@ -82,8 +93,10 @@ export function useSessionBootstrap() {
     }
 
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (authUser) => {
+      if (!active) return;
+      setBootstrapped(false);
+
       try {
-        if (!active) return;
         if (!authUser) {
           if (useSessionStore.getState().authMode === "firebase") {
             clearSession();
@@ -98,6 +111,7 @@ export function useSessionBootstrap() {
           return;
         }
 
+        const { currentLotId, currentOrganizationId } = useSessionStore.getState();
         const meResponse = await api.get("/me");
         const accessResponse = await api.get("/me/access");
         const accessPayload = accessResponse.data.data;
@@ -111,7 +125,9 @@ export function useSessionBootstrap() {
         const profile = mapFirebaseProfile(
           meResponse.data.data || {},
           accessItems as SessionAccess[],
-          authUser.email || ""
+          authUser.email || "",
+          currentLotId,
+          currentOrganizationId
         );
         profile.uid = authUser.uid;
         profile.email = authUser.email || profile.email;

@@ -37,8 +37,8 @@ export function UnauthorizedPage() {
               <p className="landing-kicker">{pendingAccess ? "Account created" : "Access blocked"}</p>
               <h2>{pendingAccess ? "Awaiting approval" : "Permission denied"}</h2>
             </div>
-            <Link className="ghost-link" to="/">
-              Home
+            <Link className="ghost-link" to="/login">
+              Login
             </Link>
           </div>
 

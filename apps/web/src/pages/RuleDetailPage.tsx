@@ -10,6 +10,23 @@ import { useToast } from "../components/Toast";
 import { Badge } from "../components/Badge";
 import { PageState } from "./common";
 
+function renderPairs(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return <div className="input">{String(value ?? "-")}</div>;
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {Object.entries(value).map(([key, itemValue]) => (
+        <div key={key} className="input" style={{ display: "grid", gap: 4 }}>
+          <strong>{key}</strong>
+          <span>{typeof itemValue === "object" ? JSON.stringify(itemValue) : String(itemValue ?? "-")}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function RuleDetailPage() {
   const { ruleId } = useParams();
   const queryClient = useQueryClient();
@@ -44,10 +61,14 @@ export function RuleDetailPage() {
         </div>
         <Card title="Rule Summary">
           <div style={{ display: "grid", gap: 8 }}>
+            <div>Name: {String(rule.data?.name || "-")}</div>
             <div>Type: {String(rule.data?.type || "-")}</div>
             <div>Priority: {String(rule.data?.priority || "-")}</div>
             <div>Lot: {String(rule.data?.lotId || "-")}</div>
-            <div>Actions: <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(rule.data?.actions || {}, null, 2)}</pre></div>
+            <div>Conditions</div>
+            {renderPairs(rule.data?.conditions)}
+            <div>Actions</div>
+            {renderPairs(rule.data?.actions)}
           </div>
         </Card>
         <Card title="Edit Rule">
@@ -62,7 +83,19 @@ export function RuleDetailPage() {
           </div>
         </Card>
         <Card title="Audit">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(audit.data || [], null, 2)}</pre>
+          {audit.data?.length ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              {audit.data.map((entry, index) => (
+                <div key={String(entry.id || index)} className="input" style={{ display: "grid", gap: 4 }}>
+                  <strong>{String(entry.actionType || entry.summary || "Audit event")}</strong>
+                  <span>{String(entry.createdAt || "-")}</span>
+                  <span>{String(entry.summary || entry.entityType || "-")}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div>No audit events recorded yet.</div>
+          )}
         </Card>
       </div>
     </PageState>

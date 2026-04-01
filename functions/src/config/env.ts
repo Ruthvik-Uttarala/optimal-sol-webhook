@@ -17,7 +17,10 @@ export const env = {
   defaultLotId: process.env.DEFAULT_LOT_ID || "lot_demo_001",
   defaultDuplicateWindowSeconds: readNumber(process.env.DEFAULT_DUPLICATE_WINDOW_SECONDS, 120),
   defaultGracePeriodMinutes: readNumber(process.env.DEFAULT_GRACE_PERIOD_MINUTES, 10),
-  allowTestHeaders: (process.env.ALLOW_TEST_HEADERS || "true").toLowerCase() === "true",
+  allowTestHeaders:
+    process.env.ALLOW_TEST_HEADERS === undefined
+      ? false
+      : process.env.ALLOW_TEST_HEADERS.toLowerCase() === "true",
   testRetentionDays: readNumber(process.env.TEST_DATA_RETENTION_DAYS, TEST_RETENTION_DAYS_DEFAULT),
   isProductionLike:
     (process.env.ENV_LABEL || "").toLowerCase() === "production" ||

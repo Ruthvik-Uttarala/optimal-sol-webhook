@@ -2,9 +2,33 @@ import { Card } from "../components/Card";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { Badge } from "../components/Badge";
 import { PageState } from "./common";
+import { useSessionStore } from "../store/useSessionStore";
+
+function renderConfigCards(value: Record<string, unknown> | undefined) {
+  const rows = Object.entries(value || {}).filter(([, entry]) => entry !== null && entry !== undefined && typeof entry !== "object");
+  if (!rows.length) {
+    return <div>No configuration values available.</div>;
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {rows.map(([key, entry]) => (
+        <div key={key} className="input" style={{ display: "grid", gap: 4 }}>
+          <strong>{key}</strong>
+          <span>{String(entry)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function SystemStatusPage() {
-  const status = useApiQuery<Record<string, unknown>>(["system-status"], "/system/status", { refetchInterval: 10000 });
+  const currentLotId = useSessionStore((state) => state.currentLotId);
+  const params = currentLotId ? { lotId: currentLotId } : undefined;
+  const status = useApiQuery<Record<string, unknown>>(["system-status", currentLotId], "/system/status", {
+    params,
+    refetchInterval: 10000
+  });
   const config = useApiQuery<Record<string, unknown>>(["system-config"], "/system/config");
 
   return (
@@ -30,10 +54,14 @@ export function SystemStatusPage() {
           <div style={{ display: "grid", gap: 8 }}>
             <div>Environment: {String(status.data?.deploymentEnvironment || config.data?.environmentLabel || "-")}</div>
             <div>Event source mode: {String(status.data?.eventSourceMode || "Test/Postman")}</div>
+            <div>Scope mode: {String(status.data?.scopeMode || "global")}</div>
+            <div>Scoped lots: {String(status.data?.scopedLotCount || 0)}</div>
+            <div>Active sources: {String(status.data?.activeSourceCount || 0)}</div>
+            <div>Unread alerts: {String(status.data?.unreadNotificationCount || 0)}</div>
           </div>
         </Card>
         <Card title="Configuration">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(config.data || {}, null, 2)}</pre>
+          {renderConfigCards(config.data)}
         </Card>
       </div>
     </PageState>

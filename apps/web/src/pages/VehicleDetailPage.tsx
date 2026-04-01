@@ -9,6 +9,7 @@ import { Input } from "../components/Input";
 import { api } from "../services/api";
 import { useToast } from "../components/Toast";
 import { PageState } from "./common";
+import { Table } from "../components/Table";
 
 export function VehicleDetailPage() {
   const { plate } = useParams();
@@ -35,11 +36,7 @@ export function VehicleDetailPage() {
       flags: flags ? flags.split(",").map((item) => item.trim()).filter(Boolean) : [],
       notesSummary: notes || null
     });
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["vehicle", plate] }),
-      queryClient.invalidateQueries({ queryKey: ["vehicles"] }),
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-    ]);
+    await queryClient.invalidateQueries();
     toast.success("Vehicle flags updated");
   }
 
@@ -76,16 +73,47 @@ export function VehicleDetailPage() {
         </div>
 
         <Card title="Recent Events">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(events.data || [], null, 2)}</pre>
+          <Table
+            headers={["Event", "Captured", "Decision", "Violation"]}
+            rows={(events.data || []).map((row) => [
+              String(row.id || "-"),
+              String(row.capturedAt || "-"),
+              <Badge
+                label={String(row.decisionStatus || "-")}
+                tone={row.decisionStatus === "paid" ? "paid" : row.decisionStatus === "unpaid" ? "unpaid" : "pending"}
+              />,
+              String(row.violationId || "-")
+            ])}
+          />
         </Card>
         <Card title="Recent Violations">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(violations.data || [], null, 2)}</pre>
+          <Table
+            headers={["Violation", "Status", "Severity", "Created"]}
+            rows={(violations.data || []).map((row) => [
+              String(row.id || "-"),
+              String(row.status || "-"),
+              String(row.severity || "-"),
+              String(row.createdAt || "-")
+            ])}
+          />
         </Card>
         <Card title="Sessions">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(sessions.data || [], null, 2)}</pre>
+          <Table
+            headers={["Session", "Status", "Opened", "Closed"]}
+            rows={(sessions.data || []).map((row) => [
+              String(row.id || "-"),
+              String(row.status || "-"),
+              String(row.openedAt || "-"),
+              String(row.closedAt || "-")
+            ])}
+          />
         </Card>
         <Card title="Evidence and Notes">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(vehicle.data?.notesSummary || {}, null, 2)}</pre>
+          <div style={{ display: "grid", gap: 8 }}>
+            <div>Notes summary: {String(vehicle.data?.notesSummary || "-")}</div>
+            <div>Flags: {summaryFlags || "-"}</div>
+            <div>Duplicate count: {String(vehicle.data?.duplicateCountRecent || 0)}</div>
+          </div>
         </Card>
       </div>
     </PageState>

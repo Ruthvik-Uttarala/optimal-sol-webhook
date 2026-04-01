@@ -1,7 +1,6 @@
 import express from "express";
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { buildApp } from "../app";
 import { InMemoryRepository } from "../repositories/firestoreRepository";
 import { COLLECTIONS } from "../config/constants";
 import { hashSecret } from "../utils/normalize";
@@ -9,6 +8,8 @@ import { hashSecret } from "../utils/normalize";
 const repoRoot = path.resolve(__dirname, "../../..");
 const collectionPath = path.resolve(repoRoot, "postman/ParkingSol.postman_collection.json");
 const environmentPath = path.resolve(repoRoot, "postman/ParkingSol.postman_environment.json");
+
+let buildApp: typeof import("../app").buildApp;
 
 async function seed(repo: InMemoryRepository): Promise<void> {
   const now = Date.now();
@@ -71,6 +72,17 @@ async function seed(repo: InMemoryRepository): Promise<void> {
     updatedAt: nowIso
   });
 
+  await repo.setDoc(COLLECTIONS.users, "uid_manager_001", {
+    id: "uid_manager_001",
+    email: "manager@parkingsol.local",
+    displayName: "Manager User",
+    globalRole: "manager",
+    status: "active",
+    defaultLotId: "lot_demo_001",
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
   await repo.setDoc(COLLECTIONS.userLotAccess, "access_uid_admin_001_lot_demo_001", {
     id: "access_uid_admin_001_lot_demo_001",
     userId: "uid_admin_001",
@@ -99,6 +111,17 @@ async function seed(repo: InMemoryRepository): Promise<void> {
     organizationId: "org_demo_001",
     lotId: "lot_demo_001",
     roleWithinLot: "support",
+    status: "active",
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.userLotAccess, "access_uid_manager_001_lot_demo_001", {
+    id: "access_uid_manager_001_lot_demo_001",
+    userId: "uid_manager_001",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    roleWithinLot: "manager",
     status: "active",
     createdAt: nowIso,
     updatedAt: nowIso
@@ -142,6 +165,62 @@ async function seed(repo: InMemoryRepository): Promise<void> {
     updatedAt: nowIso
   });
 
+  await repo.setDoc(COLLECTIONS.rules, "rule_duplicate_window_001", {
+    id: "rule_duplicate_window_001",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    name: "Duplicate Window",
+    type: "duplicate_window",
+    status: "active",
+    priority: 20,
+    conditions: { seconds: 120 },
+    actions: {},
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.rules, "rule_enforcement_hours_001", {
+    id: "rule_enforcement_hours_001",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    name: "Enforcement Hours",
+    type: "enforcement_hours",
+    status: "active",
+    priority: 30,
+    conditions: { startHour: 0, endHour: 24 },
+    actions: {},
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.rules, "rule_notification_routing_001", {
+    id: "rule_notification_routing_001",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    name: "Notification Routing",
+    type: "notification_routing",
+    status: "active",
+    priority: 40,
+    conditions: {},
+    actions: { targetRoles: ["admin", "operator", "manager", "support"] },
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.rules, "rule_default_violation_001", {
+    id: "rule_default_violation_001",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    name: "Default Violation",
+    type: "violation_threshold",
+    status: "active",
+    priority: 50,
+    conditions: { trigger: "default_unpaid" },
+    actions: { createViolation: true },
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
   await repo.setDoc(COLLECTIONS.payments, "pay_seed_active_001", {
     id: "pay_seed_active_001",
     organizationId: "org_demo_001",
@@ -171,6 +250,7 @@ async function seed(repo: InMemoryRepository): Promise<void> {
   await repo.setDoc(COLLECTIONS.systemConfig, "global", {
     id: "global",
     environmentLabel: "Test",
+    timezone: "America/New_York",
     createdAt: nowIso,
     updatedAt: nowIso
   });
@@ -180,6 +260,7 @@ async function main(): Promise<void> {
   process.env.ALLOW_TEST_HEADERS = "true";
   process.env.POSTMAN_CLIENT_SECRET = "change-me";
   process.env.INTERNAL_TEST_KEY = process.env.INTERNAL_TEST_KEY || "internal-test";
+  ({ buildApp } = await import("../app"));
 
   const repo = new InMemoryRepository();
   await seed(repo);

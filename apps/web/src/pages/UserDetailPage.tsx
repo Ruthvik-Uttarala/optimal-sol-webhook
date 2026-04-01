@@ -9,6 +9,8 @@ import { Input } from "../components/Input";
 import { useToast } from "../components/Toast";
 import { Badge } from "../components/Badge";
 import { PageState } from "./common";
+import { Table } from "../components/Table";
+import { useSessionStore } from "../store/useSessionStore";
 
 export function UserDetailPage() {
   const { userId } = useParams();
@@ -17,6 +19,8 @@ export function UserDetailPage() {
   const [role, setRole] = useState("");
   const [accessLotId, setAccessLotId] = useState("");
   const [accessOrgId, setAccessOrgId] = useState("");
+  const currentLotId = useSessionStore((state) => state.currentLotId);
+  const currentOrganizationId = useSessionStore((state) => state.currentOrganizationId);
   const user = useApiQuery<Record<string, unknown>>(["user", userId], `/users/${userId}`);
   const access = useApiQuery<Array<Record<string, unknown>>>(["user-access", userId], `/users/${userId}/access`);
 
@@ -40,7 +44,13 @@ export function UserDetailPage() {
           <Badge label={String(user.data?.globalRole || "-")} tone={user.data?.globalRole === "admin" || user.data?.globalRole === "super_admin" ? "paid" : "info"} />
         </div>
         <Card title="Profile">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(user.data || {}, null, 2)}</pre>
+          <div style={{ display: "grid", gap: 8 }}>
+            <div>Name: {String(user.data?.displayName || "-")}</div>
+            <div>Email: {String(user.data?.email || "-")}</div>
+            <div>Status: {String(user.data?.status || "-")}</div>
+            <div>Default lot: {String(user.data?.defaultLotId || "-")}</div>
+            <div>Default organization: {String(user.data?.defaultOrganizationId || "-")}</div>
+          </div>
         </Card>
         <Card title="Edit Role / Status">
           <div style={{ display: "grid", gap: 10 }}>
@@ -53,17 +63,25 @@ export function UserDetailPage() {
           </div>
         </Card>
         <Card title="Access">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(access.data || [], null, 2)}</pre>
+          <Table
+            headers={["Lot", "Organization", "Role", "Status"]}
+            rows={(access.data || []).map((row) => [
+              String(row.lotId || "-"),
+              String(row.organizationId || "-"),
+              String(row.roleWithinLot || "-"),
+              String(row.status || "-")
+            ])}
+          />
         </Card>
         <Card title="Grant Access">
           <div style={{ display: "grid", gap: 10 }}>
-            <Input value={accessOrgId} onChange={(event) => setAccessOrgId(event.target.value)} placeholder="Organization ID" />
-            <Input value={accessLotId} onChange={(event) => setAccessLotId(event.target.value)} placeholder="Lot ID" />
+            <Input value={accessOrgId} onChange={(event) => setAccessOrgId(event.target.value)} placeholder={String(currentOrganizationId || "Organization ID")} />
+            <Input value={accessLotId} onChange={(event) => setAccessLotId(event.target.value)} placeholder={String(currentLotId || "Lot ID")} />
             <Button
               onClick={async () => {
                 await api.post(`/users/${userId}/access`, {
-                  organizationId: accessOrgId,
-                  lotId: accessLotId,
+                  organizationId: accessOrgId || currentOrganizationId,
+                  lotId: accessLotId || currentLotId,
                   roleWithinLot: user.data?.globalRole || "operator"
                 });
                 await Promise.all([

@@ -7,12 +7,14 @@ import { Table } from "../components/Table";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { Badge } from "../components/Badge";
 import { Tabs } from "../components/Tabs";
+import { useSessionStore } from "../store/useSessionStore";
 
 export function ViolationsPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
-  const violations = useApiQuery<Array<Record<string, unknown>>>(["violations", query, status], "/violations", {
-    params: query ? { plate: query } : { limit: 100 },
+  const currentLotId = useSessionStore((state) => state.currentLotId);
+  const violations = useApiQuery<Array<Record<string, unknown>>>(["violations", currentLotId, query, status], "/violations", {
+    params: query ? { lotId: currentLotId, plate: query } : { lotId: currentLotId, limit: 100 },
     refetchInterval: 5000
   });
 
@@ -32,7 +34,9 @@ export function ViolationsPage() {
       <div className="page-head">
         <div>
           <h1 style={{ margin: 0 }}>Violations</h1>
-          <p style={{ margin: "4px 0 0", color: "var(--text-secondary)" }}>Operational queue with assignment and aging signals.</p>
+          <p style={{ margin: "4px 0 0", color: "var(--text-secondary)" }}>
+            Active enforcement queue for {currentLotId || "all accessible lots"} with assignment, severity, and aging signals.
+          </p>
         </div>
       </div>
       <FilterBar>

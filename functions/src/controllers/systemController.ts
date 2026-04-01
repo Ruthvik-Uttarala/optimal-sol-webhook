@@ -13,8 +13,9 @@ export function createSystemController(repo: IDataRepository) {
       });
     },
 
-    status: async (_req: Request, res: Response): Promise<void> => {
-      const data = await getSystemStatus(repo);
+    status: async (req: Request, res: Response): Promise<void> => {
+      const scopedLotIds = req.query.lotId ? [String(req.query.lotId)] : req.authContext?.lotIds || [];
+      const data = await getSystemStatus(repo, scopedLotIds);
       sendSuccess(res, data);
     },
 
@@ -50,7 +51,8 @@ export function createSystemController(repo: IDataRepository) {
     },
 
     metrics: async (req: Request, res: Response): Promise<void> => {
-      const data = await getSystemMetrics(repo, req.authContext?.lotIds || []);
+      const scopedLotIds = req.query.lotId ? [String(req.query.lotId)] : req.authContext?.lotIds || [];
+      const data = await getSystemMetrics(repo, scopedLotIds);
       sendSuccess(res, data);
     }
   };

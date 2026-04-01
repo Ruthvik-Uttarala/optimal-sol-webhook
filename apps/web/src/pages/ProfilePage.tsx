@@ -24,10 +24,7 @@ export function ProfilePage() {
     };
     await api.patch("/me/preferences", nextPreferences);
     updateUserPreferences(nextPreferences);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["profile"] }),
-      queryClient.invalidateQueries({ queryKey: ["me"] })
-    ]);
+    await queryClient.invalidateQueries();
     toast.success("Preferences updated");
   }
 

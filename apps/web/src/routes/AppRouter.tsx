@@ -28,6 +28,18 @@ import { SystemStatusPage } from "../pages/SystemStatusPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { useApiQuery } from "../hooks/useApiQuery";
 
+function LoginRoute() {
+  const user = useSessionStore((state) => state.user);
+  const isBootstrapped = useSessionStore((state) => state.isBootstrapped);
+
+  if (!isBootstrapped) {
+    return <div className="card">Loading session...</div>;
+  }
+
+  const destination = getAuthenticatedDestination(user);
+  return destination ? <Navigate to={destination} replace /> : <LoginPage />;
+}
+
 function RequireAuth({ children }: { children: JSX.Element }) {
   const user = useSessionStore((state) => state.user);
   const authMode = useSessionStore((state) => state.authMode);
@@ -83,15 +95,12 @@ function Bootstrapper() {
 }
 
 export function AppRouter() {
-  const user = useSessionStore((state) => state.user);
-  const destination = getAuthenticatedDestination(user);
-
   return (
     <>
       <Bootstrapper />
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={destination ? <Navigate to={destination} replace /> : <LoginPage />} />
+        <Route path="/login" element={<LoginRoute />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />

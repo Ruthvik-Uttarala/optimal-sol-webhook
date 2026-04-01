@@ -9,6 +9,7 @@ import { api } from "../services/api";
 import { useToast } from "../components/Toast";
 import { Badge } from "../components/Badge";
 import { PageState } from "./common";
+import { Link } from "react-router-dom";
 
 export function ViolationDetailPage() {
   const { violationId } = useParams();
@@ -25,12 +26,7 @@ export function ViolationDetailPage() {
     setBusy(true);
     try {
       await api.post(path, body);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["violation", violationId] }),
-        queryClient.invalidateQueries({ queryKey: ["violation-audit", violationId] }),
-        queryClient.invalidateQueries({ queryKey: ["violations"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-      ]);
+      await queryClient.invalidateQueries();
       toast.success("Action applied");
     } catch {
       toast.error("Action failed");
@@ -57,7 +53,7 @@ export function ViolationDetailPage() {
               <div>Severity: {String(violation.data?.severity || "-")}</div>
               <div>Reason: {String(violation.data?.reasonCode || "-")}</div>
               <div>Assigned: {String(violation.data?.assignedToUserId || "-")}</div>
-              <div>Triggered by event: {violation.data?.triggerEventId ? <a href={`/events/${violation.data.triggerEventId}`}>{String(violation.data.triggerEventId)}</a> : "-"}</div>
+              <div>Triggered by event: {violation.data?.triggerEventId ? <Link to={`/events/${violation.data.triggerEventId}`}>{String(violation.data.triggerEventId)}</Link> : "-"}</div>
             </div>
           </Card>
 
@@ -77,11 +73,16 @@ export function ViolationDetailPage() {
               <Button disabled={busy} onClick={() => action(`/violations/${violationId}/resolve`, { reason: "resolved", notes: resolveNotes || "Resolved from UI" })}>Resolve</Button>
               <Button disabled={busy} onClick={() => action(`/violations/${violationId}/dismiss`, { reason: dismissReason || "false positive" })}>Dismiss</Button>
               <Button disabled={busy} onClick={() => action(`/violations/${violationId}/escalate`)}>Escalate</Button>
-              <Button disabled={busy} onClick={() => action(`/violations/${violationId}/assign`, { assignedToUserId: assignee || "uid_operator_001" })}>Assign</Button>
+              <Button
+                disabled={busy || !assignee.trim()}
+                onClick={() => action(`/violations/${violationId}/assign`, { assignedToUserId: assignee.trim() })}
+              >
+                Assign
+              </Button>
             </div>
             <Input value={resolveNotes} onChange={(event) => setResolveNotes(event.target.value)} placeholder="Resolve notes" />
             <Input value={dismissReason} onChange={(event) => setDismissReason(event.target.value)} placeholder="Dismiss reason" />
-            <Input value={assignee} onChange={(event) => setAssignee(event.target.value)} placeholder="Assign to user ID" />
+            <Input value={assignee} onChange={(event) => setAssignee(event.target.value)} placeholder={String(violation.data?.assignedToUserId || "Assign to user ID")} />
           </div>
         </Card>
 

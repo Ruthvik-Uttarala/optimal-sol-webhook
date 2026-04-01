@@ -2,11 +2,61 @@ import dayjs from "dayjs";
 import { COLLECTIONS, SYSTEM_CONFIG_DOC } from "../config/constants";
 import type { IDataRepository } from "../repositories/firestoreRepository";
 
-function buildLotFilters(lotIds: string[]) {
-  if (lotIds.length === 0) return [];
-  if (lotIds.length === 1) return [["lotId", "==", lotIds[0]] as const];
-  if (lotIds.length <= 10) return [["lotId", "in", lotIds] as const];
-  return [];
+type QueryFilter = [string, FirebaseFirestore.WhereFilterOp, unknown];
+
+function uniqueLotIds(lotIds: string[]) {
+  return [...new Set(lotIds.filter(Boolean))];
+}
+
+async function countAcrossLots(repo: IDataRepository, collection: string, lotIds: string[], filters: QueryFilter[] = []) {
+  const scoped = uniqueLotIds(lotIds);
+  if (scoped.length === 0) {
+    return repo.countDocs(collection, filters);
+  }
+
+  const counts = await Promise.all(
+    scoped.map((lotId) => repo.countDocs(collection, [...filters, ["lotId", "==", lotId]]))
+  );
+
+  return counts.reduce((sum, value) => sum + value, 0);
+}
+
+async function listAcrossLots<T extends Record<string, unknown>>(
+  repo: IDataRepository,
+  collection: string,
+  lotIds: string[],
+  options: {
+    filters?: QueryFilter[];
+    orderBy?: string;
+    direction?: "asc" | "desc";
+    limit?: number;
+  } = {}
+) {
+  const scoped = uniqueLotIds(lotIds);
+  if (scoped.length === 0) {
+    return repo.listDocs<T>(collection, options);
+  }
+
+  const perLotLimit = Math.max(options.limit || 1, 25);
+  const rows = await Promise.all(
+    scoped.map((lotId) =>
+      repo.listDocs<T>(collection, {
+        ...options,
+        filters: [...(options.filters || []), ["lotId", "==", lotId]],
+        limit: perLotLimit
+      })
+    )
+  );
+
+  return rows
+    .flat()
+    .sort((left: Record<string, unknown>, right: Record<string, unknown>) => {
+      const field = options.orderBy || "updatedAt";
+      const leftValue = String(left[field] || "");
+      const rightValue = String(right[field] || "");
+      return options.direction === "asc" ? leftValue.localeCompare(rightValue) : rightValue.localeCompare(leftValue);
+    })
+    .slice(0, options.limit || rows.flat().length) as T[];
 }
 
 function buildScopedAccessContext(lotIds: string[]) {
@@ -19,8 +69,8 @@ function buildScopedAccessContext(lotIds: string[]) {
   } as const;
 }
 
-export async function getSystemStatus(repo: IDataRepository) {
-  const [lastEvent] = await repo.listDocs<{
+export async function getSystemStatus(repo: IDataRepository, lotIds: string[] = []) {
+  const [lastEvent] = await listAcrossLots<{
     id: string;
     processedAt?: string;
     processingStatus?: string;
@@ -28,29 +78,34 @@ export async function getSystemStatus(repo: IDataRepository) {
     decisionStatus?: string;
     sourceId?: string;
     lotId?: string;
-  }>(COLLECTIONS.events, {
+  }>(repo, COLLECTIONS.events, lotIds, {
     orderBy: "capturedAt",
     direction: "desc",
     limit: 1
   });
 
-  const [lastSuccess] = await repo.listDocs<{ id: string; processedAt?: string; capturedAt?: string }>(COLLECTIONS.events, {
+  const [lastSuccess] = await listAcrossLots<{ id: string; processedAt?: string; capturedAt?: string }>(repo, COLLECTIONS.events, lotIds, {
     filters: [["processingStatus", "==", "processed"]],
     orderBy: "processedAt",
     direction: "desc",
     limit: 1
   });
 
-  const [lastFailure] = await repo.listDocs<{ id: string; processedAt?: string; capturedAt?: string; errorCode?: string; errorMessage?: string }>(COLLECTIONS.events, {
-    filters: [["processingStatus", "==", "failed"]],
-    orderBy: "processedAt",
-    direction: "desc",
-    limit: 1
-  });
+  const [lastFailure] = await listAcrossLots<{ id: string; processedAt?: string; capturedAt?: string; errorCode?: string; errorMessage?: string }>(
+    repo,
+    COLLECTIONS.events,
+    lotIds,
+    {
+      filters: [["processingStatus", "==", "failed"]],
+      orderBy: "processedAt",
+      direction: "desc",
+      limit: 1
+    }
+  );
 
   const [activeSourceCount, unreadNotificationCount] = await Promise.all([
-    repo.countDocs(COLLECTIONS.sources, [["status", "==", "active"]]),
-    repo.countDocs(COLLECTIONS.notifications, [["isRead", "==", false]])
+    countAcrossLots(repo, COLLECTIONS.sources, lotIds, [["status", "==", "active"]]),
+    countAcrossLots(repo, COLLECTIONS.notifications, lotIds, [["isRead", "==", false]])
   ]);
 
   return {
@@ -68,7 +123,9 @@ export async function getSystemStatus(repo: IDataRepository) {
     deploymentEnvironment: process.env.ENV_LABEL || "Test",
     eventSourceMode: process.env.ALLOW_TEST_HEADERS === "true" ? "Test/Postman" : "Production",
     activeSourceCount,
-    unreadNotificationCount
+    unreadNotificationCount,
+    scopeMode: lotIds.length ? "lot_scoped" : "global",
+    scopedLotCount: uniqueLotIds(lotIds).length
   };
 }
 
@@ -83,16 +140,19 @@ export async function getSystemConfig(repo: IDataRepository) {
 
 export async function getSystemMetrics(repo: IDataRepository, lotIds: string[] = []) {
   const dayStart = dayjs().startOf("day").toISOString();
-  const filters = buildLotFilters(lotIds);
-  const scope = buildScopedAccessContext(lotIds);
+  const scopedLotIds = uniqueLotIds(lotIds);
+  const scope = buildScopedAccessContext(scopedLotIds);
 
   const [eventsToday, openViolations, vehiclesInLot, unreadAlerts, processingFailures, unpaidVehicles] = await Promise.all([
-    repo.countDocs(COLLECTIONS.events, [...(filters as never), ["capturedAt", ">=", dayStart]] as never),
-    repo.countDocs(COLLECTIONS.violations, [...(filters as never), ["status", "in", ["open", "acknowledged", "escalated"]]] as never),
-    repo.countDocs(COLLECTIONS.vehicleStates, [...(filters as never), ["presenceStatus", "==", "in_lot"]] as never),
-    repo.countDocs(COLLECTIONS.notifications, [["isRead", "==", false]]),
-    repo.countDocs(COLLECTIONS.events, [...(filters as never), ["capturedAt", ">=", dayStart], ["processingStatus", "==", "failed"]] as never),
-    repo.countDocs(COLLECTIONS.vehicleStates, [...(filters as never), ["currentStatus", "==", "unpaid"]] as never)
+    countAcrossLots(repo, COLLECTIONS.events, scopedLotIds, [["capturedAt", ">=", dayStart]]),
+    countAcrossLots(repo, COLLECTIONS.violations, scopedLotIds, [["status", "in", ["open", "acknowledged", "escalated"]]]),
+    countAcrossLots(repo, COLLECTIONS.vehicleStates, scopedLotIds, [["presenceStatus", "==", "in_lot"]]),
+    countAcrossLots(repo, COLLECTIONS.notifications, scopedLotIds, [["isRead", "==", false]]),
+    countAcrossLots(repo, COLLECTIONS.events, scopedLotIds, [
+      ["capturedAt", ">=", dayStart],
+      ["processingStatus", "==", "failed"]
+    ]),
+    countAcrossLots(repo, COLLECTIONS.vehicleStates, scopedLotIds, [["currentStatus", "==", "unpaid"]])
   ]);
 
   return {
@@ -104,7 +164,6 @@ export async function getSystemMetrics(repo: IDataRepository, lotIds: string[] =
     processingSuccess: Math.max(eventsToday - processingFailures, 0),
     unpaidVehiclesNeedingAttention: unpaidVehicles,
     scopeMode: scope.role,
-    lotCount: lotIds.length
+    lotCount: scopedLotIds.length
   };
 }
-

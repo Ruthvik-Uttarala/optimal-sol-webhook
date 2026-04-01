@@ -9,6 +9,26 @@ import { PageState } from "./common";
 import { api } from "../services/api";
 import { useToast } from "../components/Toast";
 
+function renderObjectFields(title: string, value: unknown) {
+  const rows = value && typeof value === "object" && !Array.isArray(value) ? Object.entries(value) : [];
+  return (
+    <Card title={title}>
+      {rows.length ? (
+        <div style={{ display: "grid", gap: 8 }}>
+          {rows.map(([key, entry]) => (
+            <div key={key} className="input" style={{ display: "grid", gap: 4 }}>
+              <strong>{key}</strong>
+              <span>{typeof entry === "object" ? JSON.stringify(entry) : String(entry ?? "-")}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div>No defaults configured.</div>
+      )}
+    </Card>
+  );
+}
+
 export function SettingsPage() {
   const config = useApiQuery<Record<string, unknown>>(["system-config"], "/system/config");
   const toast = useToast();
@@ -60,27 +80,19 @@ export function SettingsPage() {
             </div>
           </Card>
 
-          <Card title="Current Defaults">
-            <div style={{ display: "grid", gap: 8 }}>
-              <div>Environment label: {String(config.data?.environmentLabel || "-")}</div>
-              <div>Timezone: {String(config.data?.timezone || "America/New_York")}</div>
-              <div>Test mode enabled: {String(config.data?.testModeEnabled ?? "-")}</div>
-              <div>Support mode enabled: {String(config.data?.supportModeEnabled ?? "-")}</div>
-            </div>
-          </Card>
+        <Card title="Current Defaults">
+          <div style={{ display: "grid", gap: 8 }}>
+            <div>Environment label: {String(config.data?.environmentLabel || "-")}</div>
+            <div>Canonical app origin: {String(import.meta.env.VITE_APP_BASE_URL || "-")}</div>
+            <div>Timezone: {String(config.data?.timezone || "America/New_York")}</div>
+            <div>Test mode enabled: {String(config.data?.testModeEnabled ?? "-")}</div>
+            <div>Support mode enabled: {String(config.data?.supportModeEnabled ?? "-")}</div>
+          </div>
+        </Card>
         </div>
 
-        <Card title="Notification Defaults">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
-            {JSON.stringify(config.data?.notificationDefaults || {}, null, 2)}
-          </pre>
-        </Card>
-
-        <Card title="Source Metadata Defaults">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
-            {JSON.stringify(config.data?.sourceMetadataDefaults || {}, null, 2)}
-          </pre>
-        </Card>
+        {renderObjectFields("Notification Defaults", config.data?.notificationDefaults)}
+        {renderObjectFields("Source Metadata Defaults", config.data?.sourceMetadataDefaults)}
       </div>
     </PageState>
   );

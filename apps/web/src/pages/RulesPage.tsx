@@ -10,11 +10,17 @@ import { api } from "../services/api";
 import { useToast } from "../components/Toast";
 import { Badge } from "../components/Badge";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSessionStore } from "../store/useSessionStore";
 
 export function RulesPage() {
   const [name, setName] = useState("");
   const [status, setStatus] = useState("All");
-  const rules = useApiQuery<Array<Record<string, unknown>>>(["rules"], "/rules", { refetchInterval: 5000 });
+  const currentLotId = useSessionStore((state) => state.currentLotId);
+  const currentOrganizationId = useSessionStore((state) => state.currentOrganizationId);
+  const rules = useApiQuery<Array<Record<string, unknown>>>(["rules", currentLotId], "/rules", {
+    params: currentLotId ? { lotId: currentLotId } : undefined,
+    refetchInterval: 5000
+  });
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -33,7 +39,9 @@ export function RulesPage() {
       <div className="page-head">
         <div>
           <h1 style={{ margin: 0 }}>Rules</h1>
-          <p style={{ margin: "4px 0 0", color: "var(--text-secondary)" }}>Priority-ordered business rules with activation controls and audit visibility.</p>
+          <p style={{ margin: "4px 0 0", color: "var(--text-secondary)" }}>
+            Priority-ordered rules for {currentLotId || "the selected lot"} with activation controls and audit visibility.
+          </p>
         </div>
       </div>
       <FilterBar>
@@ -41,17 +49,22 @@ export function RulesPage() {
         <Input value={status} onChange={(event) => setStatus(event.target.value)} placeholder="Status filter" />
         <Button
           onClick={async () => {
+            if (!currentLotId) {
+              toast.error("Select a lot before creating a rule.");
+              return;
+            }
             await api.post("/rules", {
-              lotId: "lot_demo_001",
+              organizationId: currentOrganizationId || undefined,
+              lotId: currentLotId,
               name: name || "New Rule",
               description: "Created from UI",
-              type: "grace_period",
+              type: "violation_threshold",
               status: "active",
               priority: 50,
-              conditions: { minutes: 10 },
-              actions: { allow: true }
+              conditions: { trigger: "default_unpaid" },
+              actions: { createViolation: true }
             });
-            await queryClient.invalidateQueries({ queryKey: ["rules"] });
+            await queryClient.invalidateQueries({ queryKey: ["rules", currentLotId] });
             toast.success("Rule created");
           }}
         >
@@ -67,8 +80,8 @@ export function RulesPage() {
             <Badge label={String(row.status || "-")} tone={row.status === "active" ? "paid" : "pending"} />,
             String(row.priority || "-"),
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Button onClick={async () => { await api.post(`/rules/${row.id}/activate`); await queryClient.invalidateQueries({ queryKey: ["rules"] }); toast.success("Rule activated"); }}>Activate</Button>
-              <Button onClick={async () => { await api.post(`/rules/${row.id}/deactivate`); await queryClient.invalidateQueries({ queryKey: ["rules"] }); toast.success("Rule deactivated"); }}>Deactivate</Button>
+              <Button onClick={async () => { await api.post(`/rules/${row.id}/activate`); await queryClient.invalidateQueries({ queryKey: ["rules", currentLotId] }); toast.success("Rule activated"); }}>Activate</Button>
+              <Button onClick={async () => { await api.post(`/rules/${row.id}/deactivate`); await queryClient.invalidateQueries({ queryKey: ["rules", currentLotId] }); toast.success("Rule deactivated"); }}>Deactivate</Button>
             </div>
           ])}
         />

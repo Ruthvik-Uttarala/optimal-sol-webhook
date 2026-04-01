@@ -1,32 +1,65 @@
 import assert from "node:assert/strict";
 import request from "supertest";
-import { buildApp } from "../app";
 import { COLLECTIONS } from "../config/constants";
 import { InMemoryRepository } from "../repositories/firestoreRepository";
-import { processIncomingEvent } from "../services/eventProcessingService";
 import type { EventPayload } from "../types/domain";
 
 process.env.POSTMAN_CLIENT_SECRET = process.env.POSTMAN_CLIENT_SECRET || "test-secret";
 process.env.INTERNAL_TEST_KEY = process.env.INTERNAL_TEST_KEY || "internal-test";
 process.env.ALLOW_TEST_HEADERS = process.env.ALLOW_TEST_HEADERS || "true";
 
+let buildApp: typeof import("../app").buildApp;
+let processIncomingEvent: typeof import("../services/eventProcessingService").processIncomingEvent;
+
 const adminHeader = {
   "x-test-user": JSON.stringify({ uid: "uid_admin_001", role: "admin" })
 };
 
 async function seedBaseData(repo: InMemoryRepository) {
+  const nowIso = new Date().toISOString();
+  await repo.setDoc(COLLECTIONS.organizations, "org_demo_001", {
+    id: "org_demo_001",
+    name: "ParkingSol Demo Org",
+    status: "active",
+    timezone: "America/New_York",
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
   await repo.setDoc(COLLECTIONS.users, "uid_admin_001", {
     id: "uid_admin_001",
     globalRole: "admin",
     email: "admin@local.test",
-    status: "active"
+    status: "active",
+    defaultOrganizationId: "org_demo_001",
+    defaultLotId: "lot_demo_001"
   });
 
   await repo.setDoc(COLLECTIONS.users, "uid_operator_001", {
     id: "uid_operator_001",
     globalRole: "operator",
     email: "operator@local.test",
-    status: "active"
+    status: "active",
+    defaultOrganizationId: "org_demo_001",
+    defaultLotId: "lot_demo_001"
+  });
+
+  await repo.setDoc(COLLECTIONS.users, "uid_manager_001", {
+    id: "uid_manager_001",
+    globalRole: "manager",
+    email: "manager@local.test",
+    status: "active",
+    defaultOrganizationId: "org_demo_001",
+    defaultLotId: "lot_demo_001"
+  });
+
+  await repo.setDoc(COLLECTIONS.users, "uid_support_001", {
+    id: "uid_support_001",
+    globalRole: "support",
+    email: "support@local.test",
+    status: "active",
+    defaultOrganizationId: "org_demo_001",
+    defaultLotId: "lot_demo_001"
   });
 
   await repo.setDoc(COLLECTIONS.userLotAccess, "access_1", {
@@ -47,10 +80,30 @@ async function seedBaseData(repo: InMemoryRepository) {
     status: "active"
   });
 
+  await repo.setDoc(COLLECTIONS.userLotAccess, "access_3", {
+    id: "access_3",
+    userId: "uid_manager_001",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    roleWithinLot: "manager",
+    status: "active"
+  });
+
+  await repo.setDoc(COLLECTIONS.userLotAccess, "access_4", {
+    id: "access_4",
+    userId: "uid_support_001",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    roleWithinLot: "support",
+    status: "active"
+  });
+
   await repo.setDoc(COLLECTIONS.lots, "lot_demo_001", {
     id: "lot_demo_001",
     organizationId: "org_demo_001",
-    status: "active"
+    status: "active",
+    timezone: "America/New_York",
+    duplicateWindowSecondsDefault: 120
   });
 
   await repo.setDoc(COLLECTIONS.lots, "lot_other_001", {
@@ -82,6 +135,122 @@ async function seedBaseData(repo: InMemoryRepository) {
     secretHash: "9caf06bb4436cdbfa20af9121a626bc1093c4f54b31c0fa937957856135345b6",
     allowedRoutes: ["/api/v1/webhooks/postman/events"]
   });
+
+  await repo.setDoc(COLLECTIONS.apiClients, "client_unifi_1", {
+    id: "client_unifi_1",
+    type: "unifi",
+    status: "active",
+    secretHash: "9caf06bb4436cdbfa20af9121a626bc1093c4f54b31c0fa937957856135345b6",
+    allowedRoutes: ["/api/v1/webhooks/unifi/events"]
+  });
+
+  await repo.setDoc(COLLECTIONS.rules, "rule_grace_period", {
+    id: "rule_grace_period",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    name: "Grace Period",
+    type: "grace_period",
+    status: "active",
+    priority: 10,
+    conditions: { minutes: 5 },
+    actions: {},
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.rules, "rule_duplicate_window", {
+    id: "rule_duplicate_window",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    name: "Duplicate Suppression",
+    type: "duplicate_window",
+    status: "active",
+    priority: 20,
+    conditions: { seconds: 120 },
+    actions: {},
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.rules, "rule_enforcement_hours", {
+    id: "rule_enforcement_hours",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    name: "Enforcement Hours",
+    type: "enforcement_hours",
+    status: "active",
+    priority: 30,
+    conditions: { startHour: 0, endHour: 24 },
+    actions: {},
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.rules, "rule_notification_routing", {
+    id: "rule_notification_routing",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    name: "Notification Routing",
+    type: "notification_routing",
+    status: "active",
+    priority: 40,
+    conditions: {},
+    actions: { targetRoles: ["admin", "operator", "manager", "support"] },
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.rules, "rule_default_violation", {
+    id: "rule_default_violation",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    name: "Default Violation",
+    type: "violation_threshold",
+    status: "active",
+    priority: 50,
+    conditions: { trigger: "default_unpaid" },
+    actions: { createViolation: true },
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.systemConfig, "global", {
+    id: "global",
+    environmentLabel: "Test",
+    timezone: "America/New_York",
+    retentionDays: 14,
+    notificationDefaults: {
+      inAppViolations: true
+    },
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.payments, "pay_seed_active_001", {
+    id: "pay_seed_active_001",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    plate: "PAY1234",
+    normalizedPlate: "PAY1234",
+    status: "active",
+    validFrom: new Date(Date.now() - 60_000).toISOString(),
+    validUntil: new Date(Date.now() + 60_000).toISOString(),
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
+
+  await repo.setDoc(COLLECTIONS.permits, "permit_seed_active_001", {
+    id: "permit_seed_active_001",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    plate: "PERMIT1",
+    normalizedPlate: "PERMIT1",
+    status: "active",
+    validFrom: new Date(Date.now() - 60_000).toISOString(),
+    validUntil: new Date(Date.now() + 60_000).toISOString(),
+    createdAt: nowIso,
+    updatedAt: nowIso
+  });
 }
 
 function basePayload(overrides: Partial<EventPayload> = {}): EventPayload {
@@ -111,6 +280,9 @@ async function runCase(name: string, fn: () => Promise<void>) {
 }
 
 async function main() {
+  ({ buildApp } = await import("../app"));
+  ({ processIncomingEvent } = await import("../services/eventProcessingService"));
+
   await runCase("rejects missing auth on /me", async () => {
     const repo = new InMemoryRepository();
     await seedBaseData(repo);
@@ -151,6 +323,37 @@ async function main() {
     assert.equal(response.status, 200);
     assert.ok(response.body.data.accessContext);
     assert.deepEqual(response.body.data.accessContext.lotIds, ["lot_demo_001"]);
+  });
+
+  await runCase("returns scoped system metrics for manager access", async () => {
+    const repo = new InMemoryRepository();
+    await seedBaseData(repo);
+    await repo.setDoc(COLLECTIONS.vehicleStates, "veh_demo_001", {
+      id: "veh_demo_001",
+      organizationId: "org_demo_001",
+      lotId: "lot_demo_001",
+      normalizedPlate: "UNPD001",
+      currentStatus: "unpaid",
+      presenceStatus: "in_lot"
+    });
+    const app = buildApp(repo);
+    const response = await request(app)
+      .get("/api/v1/system/metrics?lotId=lot_demo_001")
+      .set("x-test-user", JSON.stringify({ uid: "uid_manager_001", role: "manager" }));
+    assert.equal(response.status, 200);
+    assert.equal(response.body.data.lotCount, 1);
+    assert.equal(response.body.data.unpaidVehiclesNeedingAttention, 1);
+  });
+
+  await runCase("blocks support user from admin-only users route", async () => {
+    const repo = new InMemoryRepository();
+    await seedBaseData(repo);
+    const app = buildApp(repo);
+    const response = await request(app)
+      .get("/api/v1/users")
+      .set("x-test-user", JSON.stringify({ uid: "uid_support_001", role: "support" }));
+    assert.equal(response.status, 403);
+    assert.equal(response.body.error.code, "FORBIDDEN");
   });
 
   await runCase("rejects invalid webhook payload", async () => {
@@ -390,4 +593,3 @@ async function main() {
 }
 
 void main();
-

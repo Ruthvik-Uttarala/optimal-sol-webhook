@@ -24,6 +24,7 @@ export function LoginPage() {
   const { style, onPointerMove } = useAmbientPointer();
   const user = useSessionStore((state) => state.user);
   const setSession = useSessionStore((state) => state.setSession);
+  const setBootstrapped = useSessionStore((state) => state.setBootstrapped);
   const mode = useMemo(() => {
     const requested = searchParams.get("mode");
     if (requested === "signup" && allowSignup) return "signup";
@@ -51,7 +52,7 @@ export function LoginPage() {
           <p className="landing-kicker">ParkingSol access</p>
           <h1>{mode === "signup" ? "Create your secure parking operations identity." : "Login"}</h1>
           <p className="landing-description">
-            Sign in to the live operations workspace, or create a pending-access account when public signup is enabled for this environment.
+            Sign in to the operator workspace backed by Firebase Authentication, Firestore access scope, and live operational state.
           </p>
           <div className="auth-feature-list">
             <div>
@@ -75,8 +76,8 @@ export function LoginPage() {
               <p className="landing-kicker">{mode === "signup" ? "Pending access signup" : "Secure sign in"}</p>
               <h2>{mode === "signup" ? "Create account" : "Welcome back"}</h2>
             </div>
-            <Link className="ghost-link" to="/">
-              Home
+            <Link className="ghost-link" to="/forgot-password">
+              Need help?
             </Link>
           </div>
 
@@ -101,7 +102,8 @@ export function LoginPage() {
                   }
 
                   await signInWithEmailAndPassword(firebaseAuth, values.email, values.password);
-                  navigate("/", { replace: true });
+                  setBootstrapped(false);
+                  navigate("/dashboard", { replace: true });
                   return;
                 }
 

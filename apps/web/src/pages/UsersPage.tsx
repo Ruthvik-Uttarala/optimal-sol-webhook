@@ -10,6 +10,7 @@ import { api } from "../services/api";
 import { useToast } from "../components/Toast";
 import { Badge } from "../components/Badge";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSessionStore } from "../store/useSessionStore";
 
 export function UsersPage() {
   const [searchParams] = useSearchParams();
@@ -21,6 +22,8 @@ export function UsersPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const q = (searchParams.get("search") || "").toLowerCase();
+  const currentLotId = useSessionStore((state) => state.currentLotId);
+  const currentOrganizationId = useSessionStore((state) => state.currentOrganizationId);
 
   const filtered = useMemo(
     () =>
@@ -48,10 +51,16 @@ export function UsersPage() {
         <Input value={createEmail} onChange={(event) => setCreateEmail(event.target.value)} placeholder="New user email" />
         <Button
           onClick={async () => {
+            if (!currentLotId || !currentOrganizationId) {
+              toast.error("Select a lot and organization before creating a user.");
+              return;
+            }
             await api.post("/users", {
               displayName: createName || "New User",
               email: createEmail || "user@example.com",
-              globalRole: "operator"
+              globalRole: "operator",
+              defaultOrganizationId: currentOrganizationId,
+              defaultLotId: currentLotId
             });
             await queryClient.invalidateQueries({ queryKey: ["users"] });
             toast.success("User created");

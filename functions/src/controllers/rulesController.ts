@@ -3,6 +3,7 @@ import type { IDataRepository } from "../repositories/firestoreRepository";
 import { COLLECTIONS } from "../config/constants";
 import { sendSuccess } from "../utils/response";
 import { makePrefixedId } from "../utils/id";
+import { assertLotAccess, listScopedDocs, loadScopedDocById } from "../utils/access";
 
 export function createRulesController(repo: IDataRepository) {
   return {
@@ -10,7 +11,7 @@ export function createRulesController(repo: IDataRepository) {
       const filters: [string, FirebaseFirestore.WhereFilterOp, unknown][] = [];
       if (req.query.lotId) filters.push(["lotId", "==", req.query.lotId]);
       if (req.query.status) filters.push(["status", "==", req.query.status]);
-      const rows = await repo.listDocs(COLLECTIONS.rules, {
+      const rows = await listScopedDocs(repo, COLLECTIONS.rules, req.authContext, {
         filters,
         orderBy: "priority",
         direction: "asc",
@@ -20,12 +21,13 @@ export function createRulesController(repo: IDataRepository) {
     },
 
     get: async (req: Request, res: Response): Promise<void> => {
-      const row = await repo.getDoc(COLLECTIONS.rules, String(req.params.ruleId));
+      const row = await loadScopedDocById<Record<string, unknown>>(repo, COLLECTIONS.rules, req.authContext, String(req.params.ruleId));
       sendSuccess(res, row);
     },
 
     create: async (req: Request, res: Response): Promise<void> => {
       const id = makePrefixedId("rule_");
+      assertLotAccess(req.authContext, req.body.lotId, "Lot scope denied");
       await repo.setDoc(COLLECTIONS.rules, id, {
         id,
         organizationId: req.body.organizationId || req.authContext?.organizationIds?.[0] || null,
@@ -60,6 +62,8 @@ export function createRulesController(repo: IDataRepository) {
     },
 
     patch: async (req: Request, res: Response): Promise<void> => {
+      const existing = await loadScopedDocById<Record<string, unknown>>(repo, COLLECTIONS.rules, req.authContext, String(req.params.ruleId));
+      assertLotAccess(req.authContext, String(existing?.lotId || req.body.lotId || null), "Lot scope denied");
       await repo.updateDoc(COLLECTIONS.rules, String(req.params.ruleId), {
         ...req.body,
         updatedByUserId: req.authContext?.uid || null,
@@ -81,6 +85,8 @@ export function createRulesController(repo: IDataRepository) {
     },
 
     activate: async (req: Request, res: Response): Promise<void> => {
+      const existing = await loadScopedDocById<Record<string, unknown>>(repo, COLLECTIONS.rules, req.authContext, String(req.params.ruleId));
+      assertLotAccess(req.authContext, String(existing?.lotId || null), "Lot scope denied");
       await repo.updateDoc(COLLECTIONS.rules, String(req.params.ruleId), {
         status: "active",
         updatedByUserId: req.authContext?.uid || null,
@@ -102,6 +108,8 @@ export function createRulesController(repo: IDataRepository) {
     },
 
     deactivate: async (req: Request, res: Response): Promise<void> => {
+      const existing = await loadScopedDocById<Record<string, unknown>>(repo, COLLECTIONS.rules, req.authContext, String(req.params.ruleId));
+      assertLotAccess(req.authContext, String(existing?.lotId || null), "Lot scope denied");
       await repo.updateDoc(COLLECTIONS.rules, String(req.params.ruleId), {
         status: "inactive",
         updatedByUserId: req.authContext?.uid || null,
@@ -123,6 +131,8 @@ export function createRulesController(repo: IDataRepository) {
     },
 
     audit: async (req: Request, res: Response): Promise<void> => {
+      const existing = await loadScopedDocById<Record<string, unknown>>(repo, COLLECTIONS.rules, req.authContext, String(req.params.ruleId));
+      assertLotAccess(req.authContext, String(existing?.lotId || null), "Lot scope denied");
       const rows = await repo.listDocs(COLLECTIONS.auditLogs, {
         filters: [
           ["entityType", "==", "rule"],

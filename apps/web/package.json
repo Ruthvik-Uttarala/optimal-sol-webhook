@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"web lint placeholder\"",
-    "test": "vitest run",
+    "test": "vitest run --pool threads --poolOptions.threads.singleThread",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -42,5 +42,15 @@
     "typescript": "5.8.2",
     "vite": "8.0.3",
     "vitest": "3.0.5"
+  },
+  "vitest": {
+    "environment": "jsdom",
+    "setupFiles": [
+      "./src/tests/setup.ts"
+    ],
+    "exclude": [
+      "e2e/**",
+      "node_modules/**"
+    ]
   }
 }

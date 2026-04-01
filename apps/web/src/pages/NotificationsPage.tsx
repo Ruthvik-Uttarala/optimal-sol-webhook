@@ -55,10 +55,7 @@ export function NotificationsPage() {
             onClick={async () => {
               await api.post("/notifications/read-all");
               if (authMode !== "firebase") {
-                await Promise.all([
-                  queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-                  queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-                ]);
+                await queryClient.invalidateQueries();
               }
               toast.success("Marked all as read");
             }}
@@ -84,10 +81,7 @@ export function NotificationsPage() {
                 onClick={async () => {
                   await api.post(`/notifications/${row.id}/read`);
                   if (authMode !== "firebase") {
-                    await Promise.all([
-                      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-                      queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-                    ]);
+                    await queryClient.invalidateQueries();
                   }
                   toast.success("Marked as read");
                 }}

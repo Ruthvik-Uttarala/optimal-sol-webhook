@@ -102,6 +102,38 @@ function dedupeKeyFor(sourceId: string, payload: EventPayload, normalizedPlate: 
   return `${sourceId}|${external}|${normalizedPlate}|${direction}|${minute}`;
 }
 
+function isActiveWindowMatch(
+  row: Record<string, unknown>,
+  nowIso: string
+) {
+  const status = String(row.status || "");
+  if (status !== "active") return false;
+
+  const validFrom = typeof row.validFrom === "string" ? row.validFrom : null;
+  const validUntil = typeof row.validUntil === "string" ? row.validUntil : null;
+
+  if (validFrom && dayjs(validFrom).isValid() && dayjs(validFrom).isAfter(dayjs(nowIso))) {
+    return false;
+  }
+
+  if (validUntil && dayjs(validUntil).isValid() && dayjs(validUntil).isBefore(dayjs(nowIso))) {
+    return false;
+  }
+
+  return true;
+}
+
+function sortByIsoDesc<T extends Record<string, unknown>>(rows: T[], field: string) {
+  return [...rows].sort((left, right) => String(right[field] || "").localeCompare(String(left[field] || "")));
+}
+
+function pickLatestOpenSession(rows: Array<Record<string, unknown>>) {
+  return sortByIsoDesc(
+    rows.filter((row) => String(row.status || "") === "open"),
+    "openedAt"
+  )[0] as { id: string; openedAt?: string } | undefined;
+}
+
 export async function processIncomingEvent(
   repo: IDataRepository,
   payload: EventPayload,
@@ -216,38 +248,38 @@ export async function processIncomingEvent(
 
     const nowIso = normalized.capturedAt;
 
-    const activePayments = await repo.listDocs<{ id: string }>(COLLECTIONS.payments, {
+    const paymentCandidates = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.payments, {
       filters: [
         ["lotId", "==", normalized.lotId],
-        ["normalizedPlate", "==", normalizedPlate],
-        ["status", "==", "active"],
-        ["validFrom", "<=", nowIso],
-        ["validUntil", ">=", nowIso]
+        ["normalizedPlate", "==", normalizedPlate]
       ],
-      orderBy: "validUntil",
-      direction: "desc",
-      limit: 1
+      limit: 20
     });
+    const activePayments = sortByIsoDesc(
+      paymentCandidates.filter((row) => isActiveWindowMatch(row, nowIso)),
+      "validUntil"
+    ).slice(0, 1) as Array<{ id: string }>;
 
-    const activePermits = await repo.listDocs<{ id: string }>(COLLECTIONS.permits, {
+    const permitCandidates = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.permits, {
       filters: [
         ["lotId", "==", normalized.lotId],
-        ["normalizedPlate", "==", normalizedPlate],
-        ["status", "==", "active"]
+        ["normalizedPlate", "==", normalizedPlate]
       ],
-      limit: 1
+      limit: 20
     });
+    const activePermits = sortByIsoDesc(
+      permitCandidates.filter((row) => isActiveWindowMatch(row, nowIso)),
+      "validUntil"
+    ).slice(0, 1) as Array<{ id: string }>;
     const previousByDedupe = await repo.listDocs<{ id: string; capturedAt: string; violationId?: string | null }>(
       COLLECTIONS.events,
       {
         filters: [["dedupeKey", "==", dedupeKey]],
-        orderBy: "capturedAt",
-        direction: "desc",
-        limit: 2
+        limit: 5
       }
     );
 
-    const previous = previousByDedupe.find((row) => row.id !== eventId) || null;
+    const previous = sortByIsoDesc(previousByDedupe, "capturedAt").find((row) => row.id !== eventId) || null;
     const duplicate = Boolean(previous);
 
     const vehicleStateId = `veh_${normalized.lotId}_${normalizedPlate}`;
@@ -256,21 +288,18 @@ export async function processIncomingEvent(
     let sessionId: string | null = null;
     let sessionOpenedAt: string | null = null;
     if (normalized.eventType === "entry" || normalized.sourceDirection === "entry") {
-      const openSessions = await repo.listDocs<{ id: string }>(COLLECTIONS.parkingSessions, {
+      const sessionCandidates = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.parkingSessions, {
         filters: [
           ["lotId", "==", normalized.lotId],
-          ["normalizedPlate", "==", normalizedPlate],
-          ["status", "==", "open"]
+          ["normalizedPlate", "==", normalizedPlate]
         ],
-        orderBy: "openedAt",
-        direction: "desc",
-        limit: 1
+        limit: 20
       });
+      const openSession = pickLatestOpenSession(sessionCandidates);
 
-      if (openSessions.length > 0) {
-        sessionId = openSessions[0].id;
-        const openSession = await repo.getDoc<Record<string, unknown>>(COLLECTIONS.parkingSessions, openSessions[0].id);
-        sessionOpenedAt = String(openSession?.openedAt || normalized.capturedAt);
+      if (openSession?.id) {
+        sessionId = openSession.id;
+        sessionOpenedAt = String(openSession.openedAt || normalized.capturedAt);
       } else {
         const createdSession = await repo.createDoc("parkingSessions", {
           organizationId: normalized.organizationId,
@@ -295,21 +324,19 @@ export async function processIncomingEvent(
     }
 
     if (normalized.eventType === "exit" || normalized.sourceDirection === "exit") {
-      const openSessions = await repo.listDocs<{ id: string; openedAt: string }>(COLLECTIONS.parkingSessions, {
+      const sessionCandidates = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.parkingSessions, {
         filters: [
           ["lotId", "==", normalized.lotId],
-          ["normalizedPlate", "==", normalizedPlate],
-          ["status", "==", "open"]
+          ["normalizedPlate", "==", normalizedPlate]
         ],
-        orderBy: "openedAt",
-        direction: "desc",
-        limit: 1
+        limit: 20
       });
+      const openSession = pickLatestOpenSession(sessionCandidates);
 
-      if (openSessions[0]) {
-        const opened = dayjs(openSessions[0].openedAt);
+      if (openSession?.id) {
+        const opened = dayjs(String(openSession.openedAt || normalized.capturedAt));
         const durationMinutes = dayjs(normalized.capturedAt).diff(opened, "minute");
-        await repo.updateDoc(COLLECTIONS.parkingSessions, openSessions[0].id, {
+        await repo.updateDoc(COLLECTIONS.parkingSessions, openSession.id, {
           status: "closed",
           exitEventId: eventId,
           closedAt: normalized.capturedAt,
@@ -317,8 +344,8 @@ export async function processIncomingEvent(
           durationMinutes,
           updatedAt: new Date().toISOString()
         });
-        sessionId = openSessions[0].id;
-        sessionOpenedAt = openSessions[0].openedAt;
+        sessionId = openSession.id;
+        sessionOpenedAt = String(openSession.openedAt || normalized.capturedAt);
       }
     }
 
@@ -363,16 +390,17 @@ export async function processIncomingEvent(
     let violationId: string | null = null;
     let createdViolationId: string | null = null;
     if (decisionStatus === "unpaid") {
-      const existingOpen = await repo.listDocs<{ id: string }>(COLLECTIONS.violations, {
+      const existingOpenRows = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.violations, {
         filters: [
           ["lotId", "==", normalized.lotId],
-          ["normalizedPlate", "==", normalizedPlate],
-          ["status", "in", ["open", "acknowledged", "escalated"]]
+          ["normalizedPlate", "==", normalizedPlate]
         ],
-        orderBy: "createdAt",
-        direction: "desc",
-        limit: 1
+        limit: 20
       });
+      const existingOpen = sortByIsoDesc(
+        existingOpenRows.filter((row) => ["open", "acknowledged", "escalated"].includes(String(row.status || ""))),
+        "createdAt"
+      ) as Array<{ id: string }>;
 
       if (!existingOpen[0]) {
         const violation = await repo.createDoc("violations", {

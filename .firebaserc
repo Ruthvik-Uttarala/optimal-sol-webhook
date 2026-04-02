@@ -3,7 +3,7 @@
     "default": "optimal-sol-webhook-demo",
     "dev": "parking-sol-dev",
     "staging": "parking-sol-staging",
-    "prod": "parking-sol-prod",
+    "prod": "payment-yveiv5",
     "ParkSol": "payment-yveiv5"
   },
   "targets": {},

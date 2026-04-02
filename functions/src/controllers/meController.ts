@@ -20,7 +20,12 @@ function getAuthContext(req: Request) {
 
 async function ensureUserProfile(repo: IDataRepository, authContext: ReturnType<typeof getAuthContext>) {
   const existingProfile = await repo.getDoc<Record<string, unknown>>(COLLECTIONS.users, authContext.uid);
-  if (existingProfile) return existingProfile;
+  if (existingProfile) {
+    return {
+      profile: existingProfile,
+      profileMissing: false
+    };
+  }
 
   const createdAt = new Date().toISOString();
   const nextProfile = {
@@ -37,43 +42,105 @@ async function ensureUserProfile(repo: IDataRepository, authContext: ReturnType<
   };
 
   await repo.setDoc(COLLECTIONS.users, authContext.uid, nextProfile, true);
-  return nextProfile;
+  return {
+    profile: nextProfile,
+    profileMissing: true
+  };
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+async function resolveAccessScope(
+  repo: IDataRepository,
+  authContext: ReturnType<typeof getAuthContext>,
+  profile: Record<string, unknown>
+) {
+  const accessRows = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.userLotAccess, {
+    filters: [
+      ["userId", "==", authContext.uid],
+      ["status", "==", "active"]
+    ]
+  });
+
+  const sortedAccessRows = [...accessRows].sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
+  const effectiveRole = (profile.globalRole || authContext.role || null) as string | null;
+  const status = String(profile.status || (effectiveRole ? "active" : "pending_access"));
+  const lotIds = uniqueStrings(sortedAccessRows.map((row) => String(row.lotId || "")));
+  const organizationIds = uniqueStrings(sortedAccessRows.map((row) => String(row.organizationId || "")));
+  const organizations = (
+    await Promise.all(
+      organizationIds.map(async (organizationId) => repo.getDoc<Record<string, unknown>>(COLLECTIONS.organizations, organizationId))
+    )
+  ).filter(Boolean) as Record<string, unknown>[];
+  const lots = (
+    await Promise.all(lotIds.map(async (lotId) => repo.getDoc<Record<string, unknown>>(COLLECTIONS.lots, lotId)))
+  ).filter(Boolean) as Record<string, unknown>[];
+
+  const defaultLotId = typeof profile.defaultLotId === "string" && lotIds.includes(profile.defaultLotId)
+    ? profile.defaultLotId
+    : null;
+  const defaultOrganizationId = typeof profile.defaultOrganizationId === "string" && organizationIds.includes(profile.defaultOrganizationId)
+    ? profile.defaultOrganizationId
+    : null;
+  const resolvedLotId = defaultLotId || lotIds[0] || null;
+  const resolvedOrganizationId = defaultOrganizationId || organizationIds[0] || null;
+  const hasActiveScope = effectiveRole === "super_admin" || lotIds.length > 0;
+  const blockedReason =
+    status === "active" && effectiveRole && effectiveRole !== "super_admin" && !hasActiveScope ? "NO_ACTIVE_SCOPE" : null;
+
+  return {
+    accessRecords: sortedAccessRows,
+    organizations,
+    lots,
+    organizationIds,
+    lotIds,
+    effectiveRole,
+    status,
+    hasActiveScope,
+    defaultOrganizationId,
+    defaultLotId,
+    resolvedOrganizationId,
+    resolvedLotId,
+    blockedReason
+  };
 }
 
 export function createMeController(repo: IDataRepository) {
   return {
     me: async (req: Request, res: Response): Promise<void> => {
       const authContext = getAuthContext(req);
-      const profile = await ensureUserProfile(repo, authContext);
-      const accessRows = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.userLotAccess, {
-        filters: [
-          ["userId", "==", authContext.uid],
-          ["status", "==", "active"]
-        ],
-        orderBy: "createdAt",
-        direction: "desc"
-      });
+      const { profile, profileMissing } = await ensureUserProfile(repo, authContext);
+      const scope = await resolveAccessScope(repo, authContext, profile);
 
       sendSuccess(res, {
         ...profile,
         id: authContext.uid,
         email: profile?.email || authContext.email || null,
         displayName: profile?.displayName || authContext.email || authContext.uid,
-        status: profile?.status || (authContext.role ? "active" : "pending_access"),
-        globalRole: profile?.globalRole || authContext.role,
-        effectiveRole: profile?.globalRole || authContext.role,
-        organizationIds: authContext.organizationIds,
-        lotIds: authContext.lotIds,
-        defaultOrganizationId: profile?.defaultOrganizationId || authContext.organizationIds[0] || null,
-        defaultLotId: profile?.defaultLotId || authContext.lotIds[0] || null,
-        currentLotId: profile?.defaultLotId || authContext.lotIds[0] || null,
+        status: scope.status,
+        globalRole: scope.effectiveRole,
+        effectiveRole: scope.effectiveRole,
+        organizationIds: scope.organizationIds,
+        lotIds: scope.lotIds,
+        defaultOrganizationId: scope.defaultOrganizationId,
+        defaultLotId: scope.defaultLotId,
+        resolvedOrganizationId: scope.resolvedOrganizationId,
+        resolvedLotId: scope.resolvedLotId,
+        currentLotId: scope.resolvedLotId,
+        hasActiveScope: scope.hasActiveScope,
         notificationPreferences: profile?.notificationPreferences || DEFAULT_NOTIFICATION_PREFERENCES,
-        profileMissing: !profile,
+        profileMissing,
         accessContext: {
-          effectiveRole: profile?.globalRole || authContext.role,
-          lotIds: authContext.lotIds,
-          organizationIds: authContext.organizationIds,
-          activeAccessCount: accessRows.length
+          effectiveRole: scope.effectiveRole,
+          lotIds: scope.lotIds,
+          organizationIds: scope.organizationIds,
+          activeAccessCount: scope.accessRecords.length,
+          hasActiveScope: scope.hasActiveScope,
+          resolvedOrganizationId: scope.resolvedOrganizationId,
+          resolvedLotId: scope.resolvedLotId,
+          blockedReason: scope.blockedReason
         }
       });
     },
@@ -102,25 +169,24 @@ export function createMeController(repo: IDataRepository) {
 
     access: async (req: Request, res: Response): Promise<void> => {
       const authContext = getAuthContext(req);
-      const profile = await ensureUserProfile(repo, authContext);
-      const rows = await repo.listDocs(COLLECTIONS.userLotAccess, {
-        filters: [
-          ["userId", "==", authContext.uid],
-          ["status", "==", "active"]
-        ],
-        orderBy: "createdAt",
-        direction: "desc"
-      });
+      const { profile } = await ensureUserProfile(repo, authContext);
+      const scope = await resolveAccessScope(repo, authContext, profile);
       sendSuccess(res, {
         userId: authContext.uid,
-        status: profile.status || (authContext.role ? "active" : "pending_access"),
-        effectiveRole: profile.globalRole || authContext.role,
-        defaultOrganizationId: profile.defaultOrganizationId || authContext.organizationIds[0] || null,
-        defaultLotId: profile.defaultLotId || authContext.lotIds[0] || null,
-        currentLotId: profile.defaultLotId || authContext.lotIds[0] || null,
-        organizationIds: authContext.organizationIds,
-        lotIds: authContext.lotIds,
-        accessRecords: rows
+        status: scope.status,
+        effectiveRole: scope.effectiveRole,
+        hasActiveScope: scope.hasActiveScope,
+        defaultOrganizationId: scope.defaultOrganizationId,
+        defaultLotId: scope.defaultLotId,
+        resolvedOrganizationId: scope.resolvedOrganizationId,
+        resolvedLotId: scope.resolvedLotId,
+        currentLotId: scope.resolvedLotId,
+        organizationIds: scope.organizationIds,
+        lotIds: scope.lotIds,
+        organizations: scope.organizations,
+        lots: scope.lots,
+        blockedReason: scope.blockedReason,
+        accessRecords: scope.accessRecords
       });
     }
   };

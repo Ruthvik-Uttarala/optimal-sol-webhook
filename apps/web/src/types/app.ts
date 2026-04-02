@@ -1,4 +1,5 @@
 export type GlobalRole = "super_admin" | "admin" | "operator" | "manager" | "support";
+export type BootstrapStatus = "idle" | "loading" | "authenticated" | "unauthorized" | "blocked" | "error";
 
 export interface SessionUser {
   uid: string;

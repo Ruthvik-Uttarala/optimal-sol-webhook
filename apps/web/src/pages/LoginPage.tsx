@@ -24,13 +24,14 @@ export function LoginPage() {
   const { style, onPointerMove } = useAmbientPointer();
   const user = useSessionStore((state) => state.user);
   const setSession = useSessionStore((state) => state.setSession);
-  const setBootstrapped = useSessionStore((state) => state.setBootstrapped);
+  const bootstrapStatus = useSessionStore((state) => state.bootstrapStatus);
+  const setBootstrapState = useSessionStore((state) => state.setBootstrapState);
   const mode = useMemo(() => {
     const requested = searchParams.get("mode");
     if (requested === "signup" && allowSignup) return "signup";
     return "login";
   }, [allowSignup, searchParams]);
-  const destination = getAuthenticatedDestination(user);
+  const destination = getAuthenticatedDestination(user, bootstrapStatus);
 
   const { register, handleSubmit, watch, formState } = useForm<LoginValues>({
     defaultValues: { email: "", password: "", confirmPassword: "" }
@@ -102,13 +103,14 @@ export function LoginPage() {
                   }
 
                   await signInWithEmailAndPassword(firebaseAuth, values.email, values.password);
-                  setBootstrapped(false);
+                  setBootstrapState("loading");
                   navigate("/dashboard", { replace: true });
                   return;
                 }
 
                 if (mode === "login" && isDevFallbackEnabled()) {
                   setSession(buildDevSession(values.email));
+                  setBootstrapState("authenticated");
                   navigate("/dashboard", { replace: true });
                   return;
                 }

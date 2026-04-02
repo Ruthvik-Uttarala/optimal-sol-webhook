@@ -323,6 +323,57 @@ async function main() {
     assert.equal(response.status, 200);
     assert.ok(response.body.data.accessContext);
     assert.deepEqual(response.body.data.accessContext.lotIds, ["lot_demo_001"]);
+    assert.equal(response.body.data.hasActiveScope, true);
+    assert.equal(response.body.data.resolvedLotId, "lot_demo_001");
+  });
+
+  await runCase("returns stable scope payload for /me/access", async () => {
+    const repo = new InMemoryRepository();
+    await seedBaseData(repo);
+    const app = buildApp(repo);
+    const response = await request(app).get("/api/v1/me/access").set(adminHeader);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.data.hasActiveScope, true);
+    assert.equal(response.body.data.resolvedLotId, "lot_demo_001");
+    assert.equal(response.body.data.organizations.length, 1);
+    assert.equal(response.body.data.lots.length, 1);
+    assert.equal(response.body.data.accessRecords.length, 1);
+  });
+
+  await runCase("returns an explicit blocked scope result when active access is missing", async () => {
+    const repo = new InMemoryRepository();
+    await seedBaseData(repo);
+    await repo.setDoc(COLLECTIONS.users, "uid_blocked_001", {
+      id: "uid_blocked_001",
+      globalRole: "admin",
+      email: "blocked@local.test",
+      status: "active"
+    });
+    const app = buildApp(repo);
+    const response = await request(app)
+      .get("/api/v1/me/access")
+      .set("x-test-user", JSON.stringify({ uid: "uid_blocked_001", role: "admin" }));
+    assert.equal(response.status, 200);
+    assert.equal(response.body.data.hasActiveScope, false);
+    assert.equal(response.body.data.blockedReason, "NO_ACTIVE_SCOPE");
+    assert.equal(response.body.data.accessRecords.length, 0);
+  });
+
+  await runCase("blocks secured routes when active access is missing", async () => {
+    const repo = new InMemoryRepository();
+    await seedBaseData(repo);
+    await repo.setDoc(COLLECTIONS.users, "uid_blocked_001", {
+      id: "uid_blocked_001",
+      globalRole: "admin",
+      email: "blocked@local.test",
+      status: "active"
+    });
+    const app = buildApp(repo);
+    const response = await request(app)
+      .get("/api/v1/system/metrics")
+      .set("x-test-user", JSON.stringify({ uid: "uid_blocked_001", role: "admin" }));
+    assert.equal(response.status, 403);
+    assert.equal(response.body.error.code, "NO_ACTIVE_SCOPE");
   });
 
   await runCase("returns scoped system metrics for manager access", async () => {

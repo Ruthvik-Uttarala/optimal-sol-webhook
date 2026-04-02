@@ -9,9 +9,12 @@ export function UnauthorizedPage() {
   const navigate = useNavigate();
   const user = useSessionStore((state) => state.user);
   const authMode = useSessionStore((state) => state.authMode);
+  const bootstrapStatus = useSessionStore((state) => state.bootstrapStatus);
+  const bootstrapMessage = useSessionStore((state) => state.bootstrapMessage);
   const clearSession = useSessionStore((state) => state.clearSession);
   const { style, onPointerMove } = useAmbientPointer();
   const pendingAccess = user?.status === "pending_access" || !user?.role;
+  const blockedScope = bootstrapStatus === "blocked";
 
   return (
     <div className="auth-experience" onPointerMove={onPointerMove} style={style}>
@@ -22,20 +25,28 @@ export function UnauthorizedPage() {
       </div>
       <div className="auth-split auth-split--compact">
         <section className="auth-story">
-          <p className="landing-kicker">{pendingAccess ? "Pending access" : "Unauthorized"}</p>
-          <h1>{pendingAccess ? "Your identity is real, but operational access is still being granted." : "This account cannot open the requested workspace."}</h1>
+          <p className="landing-kicker">{pendingAccess ? "Pending access" : blockedScope ? "Scope blocked" : "Unauthorized"}</p>
+          <h1>
+            {pendingAccess
+              ? "Your identity is real, but operational access is still being granted."
+              : blockedScope
+                ? "This account is active, but no valid lot scope is configured yet."
+                : "This account cannot open the requested workspace."}
+          </h1>
           <p className="landing-description">
             {pendingAccess
               ? "Your Firebase session is active and your Firestore-backed profile has been created. An administrator still needs to assign role and lot access before you can enter the dashboard."
-              : "The requested route is outside the current role or lot scope. Use an authorized account or return to the public entry experience."}
+              : blockedScope
+                ? "The account has a recognized role, but it still needs at least one valid active lot assignment before the operational shell can open."
+                : "The requested route is outside the current role or lot scope. Use an authorized account or return to the public entry experience."}
           </p>
         </section>
 
         <section className="auth-panel">
           <div className="auth-panel-header">
             <div>
-              <p className="landing-kicker">{pendingAccess ? "Account created" : "Access blocked"}</p>
-              <h2>{pendingAccess ? "Awaiting approval" : "Permission denied"}</h2>
+              <p className="landing-kicker">{pendingAccess ? "Account created" : blockedScope ? "Scope required" : "Access blocked"}</p>
+              <h2>{pendingAccess ? "Awaiting approval" : blockedScope ? "No active lot scope" : "Permission denied"}</h2>
             </div>
             <Link className="ghost-link" to="/login">
               Login
@@ -44,7 +55,11 @@ export function UnauthorizedPage() {
 
           <div className="auth-form">
             <p className={pendingAccess ? "auth-success" : "auth-error"}>
-              {pendingAccess ? `Signed in as ${user?.email || "this account"}.` : "You do not currently have access to this page."}
+              {pendingAccess
+                ? `Signed in as ${user?.email || "this account"}.`
+                : blockedScope
+                  ? bootstrapMessage || "This account does not yet have an active lot assignment."
+                  : "You do not currently have access to this page."}
             </p>
             <div className="auth-links">
               <Link to="/login">Go to login</Link>

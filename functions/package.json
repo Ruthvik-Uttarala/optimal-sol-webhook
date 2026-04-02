@@ -13,7 +13,8 @@
     "test:api": "npm run build && node lib/scripts/runApiAssertions.js",
     "test:rules:unit": "npm run build && node lib/scripts/runFirestoreRulesAssertions.js",
     "newman": "npm run build && node lib/scripts/runNewmanLocal.js",
-    "newman:raw": "newman run ../postman/ParkingSol.postman_collection.json -e ../postman/ParkingSol.postman_environment.json"
+    "newman:raw": "newman run ../postman/ParkingSol.postman_collection.json -e ../postman/ParkingSol.postman_environment.json",
+    "repair:bootstrap": "npm run build && node lib/scripts/repairProductionBootstrap.js"
   },
   "dependencies": {
     "@parking-sol/shared": "file:vendor/parking-sol-shared-1.0.0.tgz",

@@ -105,6 +105,11 @@ export function requireLotScope() {
       return;
     }
 
+    if (!ctx.lotIds.length) {
+      next(new AppError(403, ERROR_CODES.NO_ACTIVE_SCOPE, "No active lot scope configured"));
+      return;
+    }
+
     const lotId =
       (req.query.lotId as string | undefined) ||
       (req.body?.lotId as string | undefined) ||

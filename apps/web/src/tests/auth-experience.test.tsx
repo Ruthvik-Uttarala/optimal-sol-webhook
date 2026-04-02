@@ -121,6 +121,9 @@ describe("auth experience", () => {
       currentLotId: null,
       currentOrganizationId: null,
       authMode: "guest",
+      bootstrapStatus: "idle",
+      bootstrapMessage: null,
+      bootstrapCode: null,
       unreadCount: 0,
       notifications: [],
       isBootstrapped: true
@@ -146,7 +149,9 @@ describe("auth experience", () => {
         role: "admin",
         status: "active"
       },
-      authMode: "firebase"
+      authMode: "firebase",
+      bootstrapStatus: "authenticated",
+      isBootstrapped: true
     });
 
     renderWithProviders(
@@ -264,6 +269,7 @@ describe("auth experience", () => {
       user: null,
       access: [],
       authMode: "guest",
+      bootstrapStatus: "loading",
       isBootstrapped: false
     });
 
@@ -275,6 +281,81 @@ describe("auth experience", () => {
       expect(user?.role).toBe("manager");
       expect(user?.defaultLotId).toBe("lot_truth_001");
       expect(user?.notificationPreferences?.soundEnabled).toBe(true);
+      expect(useSessionStore.getState().bootstrapStatus).toBe("authenticated");
+    });
+  });
+
+  it("exits loading with an explicit blocked state when no active scope is returned", async () => {
+    authState.authEnabled = true;
+    authState.authUser = {
+      uid: "uid_truth_002",
+      email: "blocked@parkingsol.app",
+      displayName: "Blocked User"
+    };
+    apiState.get.mockImplementation(async (path: string) => {
+      if (path === "/me") {
+        return {
+          data: {
+            success: true,
+            data: {
+              id: "uid_truth_002",
+              displayName: "Blocked User",
+              email: "blocked@parkingsol.app",
+              status: "active",
+              globalRole: "admin"
+            }
+          }
+        };
+      }
+
+      return {
+        data: {
+          success: true,
+          data: {
+            hasActiveScope: false,
+            blockedReason: "NO_ACTIVE_SCOPE",
+            accessRecords: []
+          }
+        }
+      };
+    });
+
+    renderWithProviders(<BootstrapHarness />);
+
+    await waitFor(() => {
+      expect(useSessionStore.getState().bootstrapStatus).toBe("blocked");
+      expect(useSessionStore.getState().bootstrapCode).toBe("NO_ACTIVE_SCOPE");
+      expect(useSessionStore.getState().user?.email).toBe("blocked@parkingsol.app");
+    });
+  });
+
+  it("exits loading with an explicit unauthorized state when /me fails", async () => {
+    authState.authEnabled = true;
+    authState.authUser = {
+      uid: "uid_truth_003",
+      email: "unauthorized@parkingsol.app",
+      displayName: "Unauthorized User"
+    };
+    apiState.get.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 401,
+        data: {
+          error: {
+            code: "UNAUTHORIZED",
+            message: "Authentication required"
+          }
+        }
+      },
+      message: "Authentication required"
+    });
+
+    renderWithProviders(<BootstrapHarness />);
+
+    await waitFor(() => {
+      expect(useSessionStore.getState().bootstrapStatus).toBe("unauthorized");
+      expect(useSessionStore.getState().bootstrapCode).toBe("UNAUTHORIZED");
+      expect(useSessionStore.getState().user?.email).toBe("unauthorized@parkingsol.app");
     });
   });
 
@@ -356,6 +437,7 @@ describe("auth experience", () => {
         }
       ],
       authMode: "firebase",
+      bootstrapStatus: "authenticated",
       isBootstrapped: true
     });
 
@@ -366,7 +448,7 @@ describe("auth experience", () => {
     await waitFor(() => expect(apiState.patch).toHaveBeenCalledWith("/me/preferences", { soundEnabled: true, digestEnabled: false }));
 
     useSessionStore.getState().clearSession();
-    useSessionStore.setState({ isBootstrapped: false });
+    useSessionStore.setState({ bootstrapStatus: "loading", isBootstrapped: false });
 
     renderWithProviders(<BootstrapHarness />);
     await waitFor(() => {
@@ -385,6 +467,7 @@ describe("auth experience", () => {
         status: "active"
       },
       authMode: "firebase",
+      bootstrapStatus: "authenticated",
       isBootstrapped: true
     });
 

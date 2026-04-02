@@ -56,6 +56,12 @@ describe("api auth and route guards", () => {
       status: "active"
     });
 
+    await repo.setDoc(COLLECTIONS.organizations, "org_demo_001", {
+      id: "org_demo_001",
+      name: "ParkingSol Demo Org",
+      status: "active"
+    });
+
     await repo.setDoc(COLLECTIONS.lots, "lot_demo_001", {
       id: "lot_demo_001",
       organizationId: "org_demo_001",
@@ -157,6 +163,52 @@ describe("api auth and route guards", () => {
     expect(response.status).toBe(200);
     expect(response.body.data.accessContext).toBeTruthy();
     expect(response.body.data.accessContext.lotIds).toContain("lot_demo_001");
+    expect(response.body.data.hasActiveScope).toBe(true);
+    expect(response.body.data.resolvedLotId).toBe("lot_demo_001");
+  });
+
+  it("returns stable scope payload for /me/access", async () => {
+    const response = await request(app).get("/api/v1/me/access").set(adminHeader);
+    expect(response.status).toBe(200);
+    expect(response.body.data.hasActiveScope).toBe(true);
+    expect(response.body.data.resolvedLotId).toBe("lot_demo_001");
+    expect(response.body.data.organizations).toHaveLength(1);
+    expect(response.body.data.lots).toHaveLength(1);
+    expect(response.body.data.accessRecords).toHaveLength(1);
+  });
+
+  it("returns an explicit blocked scope result when a role exists without active lot access", async () => {
+    await repo.setDoc(COLLECTIONS.users, "uid_blocked_001", {
+      id: "uid_blocked_001",
+      globalRole: "admin",
+      email: "blocked@local.test",
+      status: "active"
+    });
+
+    const response = await request(app)
+      .get("/api/v1/me/access")
+      .set("x-test-user", JSON.stringify({ uid: "uid_blocked_001", role: "admin" }));
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.hasActiveScope).toBe(false);
+    expect(response.body.data.blockedReason).toBe("NO_ACTIVE_SCOPE");
+    expect(response.body.data.accessRecords).toHaveLength(0);
+  });
+
+  it("blocks scoped routes when a role exists without active lot access", async () => {
+    await repo.setDoc(COLLECTIONS.users, "uid_blocked_001", {
+      id: "uid_blocked_001",
+      globalRole: "admin",
+      email: "blocked@local.test",
+      status: "active"
+    });
+
+    const response = await request(app)
+      .get("/api/v1/system/metrics")
+      .set("x-test-user", JSON.stringify({ uid: "uid_blocked_001", role: "admin" }));
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe("NO_ACTIVE_SCOPE");
   });
 
   it("blocks cross-lot event reads", async () => {

@@ -27,30 +27,79 @@ import { SettingsPage } from "../pages/SettingsPage";
 import { SystemStatusPage } from "../pages/SystemStatusPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { useApiQuery } from "../hooks/useApiQuery";
+import { Button } from "../components/Button";
+
+function LoadingSession() {
+  return <div className="card">Loading session...</div>;
+}
+
+function SessionErrorState() {
+  const bootstrapMessage = useSessionStore((state) => state.bootstrapMessage);
+  const clearSession = useSessionStore((state) => state.clearSession);
+
+  return (
+    <div className="card" style={{ display: "grid", gap: 12, maxWidth: 560 }}>
+      <div>
+        <h2 style={{ margin: 0 }}>Session Error</h2>
+        <p style={{ margin: "8px 0 0", color: "var(--text-secondary)" }}>
+          {bootstrapMessage || "We could not finish loading this authenticated session."}
+        </p>
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Button type="button" onClick={() => window.location.reload()}>
+          Retry
+        </Button>
+        <button
+          className="ghost-link ghost-link--button"
+          type="button"
+          onClick={() => {
+            clearSession();
+            window.location.assign("/login");
+          }}
+        >
+          Return to login
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function LoginRoute() {
   const user = useSessionStore((state) => state.user);
-  const isBootstrapped = useSessionStore((state) => state.isBootstrapped);
+  const bootstrapStatus = useSessionStore((state) => state.bootstrapStatus);
 
-  if (!isBootstrapped) {
-    return <div className="card">Loading session...</div>;
+  if (bootstrapStatus === "loading") {
+    return <LoadingSession />;
   }
 
-  const destination = getAuthenticatedDestination(user);
+  if (bootstrapStatus === "error") {
+    return <SessionErrorState />;
+  }
+
+  const destination = getAuthenticatedDestination(user, bootstrapStatus);
   return destination ? <Navigate to={destination} replace /> : <LoginPage />;
 }
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const user = useSessionStore((state) => state.user);
   const authMode = useSessionStore((state) => state.authMode);
-  const isBootstrapped = useSessionStore((state) => state.isBootstrapped);
+  const bootstrapStatus = useSessionStore((state) => state.bootstrapStatus);
   const location = useLocation();
 
-  if (!isBootstrapped) {
-    return <div className="card">Loading session...</div>;
+  if (bootstrapStatus === "loading") {
+    return <LoadingSession />;
   }
 
-  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+  if (bootstrapStatus === "error") {
+    return <SessionErrorState />;
+  }
+
+  if (bootstrapStatus === "blocked" || bootstrapStatus === "unauthorized") {
+    return <Navigate to="/unauthorized" replace state={{ from: location }} />;
+  }
+  if (bootstrapStatus !== "authenticated" || !user) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
   if (!isOperationalUser(user) && authMode === "firebase") {
     return <Navigate to="/unauthorized" replace state={{ from: location }} />;
   }
@@ -59,9 +108,11 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 
 function RequireRole({ allowed, children }: { allowed: GlobalRole[]; children: JSX.Element }) {
   const user = useSessionStore((state) => state.user);
-  const isBootstrapped = useSessionStore((state) => state.isBootstrapped);
-  if (!isBootstrapped) return <div className="card">Loading session...</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  const bootstrapStatus = useSessionStore((state) => state.bootstrapStatus);
+  if (bootstrapStatus === "loading") return <LoadingSession />;
+  if (bootstrapStatus === "error") return <SessionErrorState />;
+  if (bootstrapStatus === "blocked" || bootstrapStatus === "unauthorized") return <Navigate to="/unauthorized" replace />;
+  if (bootstrapStatus !== "authenticated" || !user) return <Navigate to="/login" replace />;
   if (!user.role) return <Navigate to="/unauthorized" replace />;
   if (user.role === "super_admin" || allowed.includes(user.role)) return children;
   return <Navigate to="/unauthorized" replace />;

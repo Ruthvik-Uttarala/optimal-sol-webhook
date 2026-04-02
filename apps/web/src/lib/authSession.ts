@@ -1,4 +1,4 @@
-import type { GlobalRole, SessionProfile, SessionUser } from "../types/app";
+import type { BootstrapStatus, GlobalRole, SessionProfile, SessionUser } from "../types/app";
 
 export function isDevFallbackEnabled() {
   return String(import.meta.env.VITE_ENABLE_DEV_AUTH_FALLBACK || "").toLowerCase() === "true";
@@ -31,7 +31,13 @@ export function isOperationalUser(user: SessionUser | null | undefined) {
   return Boolean(user && user.status !== "pending_access" && user.role);
 }
 
-export function getAuthenticatedDestination(user: SessionUser | null | undefined) {
+export function getAuthenticatedDestination(user: SessionUser | null | undefined, bootstrapStatus?: BootstrapStatus) {
+  if (bootstrapStatus === "blocked" || bootstrapStatus === "unauthorized") {
+    return "/unauthorized";
+  }
+  if (bootstrapStatus && bootstrapStatus !== "authenticated") {
+    return null;
+  }
   if (!user) return null;
   return isOperationalUser(user) ? "/dashboard" : "/unauthorized";
 }

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { NotificationRecord, SessionAccess, SessionProfile, SessionUser } from "../types/app";
+import type { BootstrapStatus, NotificationRecord, SessionAccess, SessionProfile, SessionUser } from "../types/app";
 import { isDevFallbackEnabled } from "../lib/authSession";
 
 const DEV_SESSION_KEY = "parking_sol_user";
@@ -30,6 +30,9 @@ interface SessionState {
   currentLotId: string | null;
   currentOrganizationId: string | null;
   authMode: "firebase" | "dev" | "guest";
+  bootstrapStatus: BootstrapStatus;
+  bootstrapMessage: string | null;
+  bootstrapCode: string | null;
   unreadCount: number;
   notifications: NotificationRecord[];
   isBootstrapped: boolean;
@@ -40,6 +43,7 @@ interface SessionState {
   setNotifications: (notifications: NotificationRecord[]) => void;
   updateUserPreferences: (preferences: Record<string, unknown>) => void;
   setBootstrapped: (value: boolean) => void;
+  setBootstrapState: (status: BootstrapStatus, details?: { message?: string | null; code?: string | null }) => void;
   setCurrentContext: (lotId: string | null, organizationId: string | null) => void;
 }
 
@@ -51,6 +55,9 @@ export const useSessionStore = create<SessionState>((set) => ({
   currentLotId: cachedSession?.currentLotId || cachedSession?.defaultLotId || null,
   currentOrganizationId: cachedSession?.currentOrganizationId || cachedSession?.defaultOrganizationId || null,
   authMode: cachedSession ? cachedSession.authMode || "dev" : "guest",
+  bootstrapStatus: "idle",
+  bootstrapMessage: null,
+  bootstrapCode: null,
   unreadCount: 0,
   notifications: [],
   isBootstrapped: false,
@@ -87,8 +94,12 @@ export const useSessionStore = create<SessionState>((set) => ({
       currentLotId: null,
       currentOrganizationId: null,
       authMode: "guest",
+      bootstrapStatus: "idle",
+      bootstrapMessage: null,
+      bootstrapCode: null,
       unreadCount: 0,
-      notifications: []
+      notifications: [],
+      isBootstrapped: true
     });
     persistCachedSession(null);
   },
@@ -99,8 +110,12 @@ export const useSessionStore = create<SessionState>((set) => ({
       currentLotId: null,
       currentOrganizationId: null,
       authMode: "guest",
+      bootstrapStatus: "idle",
+      bootstrapMessage: null,
+      bootstrapCode: null,
       unreadCount: 0,
-      notifications: []
+      notifications: [],
+      isBootstrapped: true
     });
     persistCachedSession(null);
   },
@@ -111,8 +126,12 @@ export const useSessionStore = create<SessionState>((set) => ({
       currentLotId: null,
       currentOrganizationId: null,
       authMode: "guest",
+      bootstrapStatus: "idle",
+      bootstrapMessage: null,
+      bootstrapCode: null,
       unreadCount: 0,
-      notifications: []
+      notifications: [],
+      isBootstrapped: true
     });
     persistCachedSession(null);
   },
@@ -134,7 +153,20 @@ export const useSessionStore = create<SessionState>((set) => ({
           }
         : null
     })),
-  setBootstrapped: (value) => set({ isBootstrapped: value }),
+  setBootstrapped: (value) =>
+    set((state) => ({
+      isBootstrapped: value,
+      bootstrapStatus: value ? (state.user ? "authenticated" : "idle") : "loading",
+      bootstrapMessage: value ? state.bootstrapMessage : null,
+      bootstrapCode: value ? state.bootstrapCode : null
+    })),
+  setBootstrapState: (status, details) =>
+    set({
+      bootstrapStatus: status,
+      bootstrapMessage: details?.message || null,
+      bootstrapCode: details?.code || null,
+      isBootstrapped: status !== "loading"
+    }),
   setCurrentContext: (lotId, organizationId) =>
     set({
       currentLotId: lotId,

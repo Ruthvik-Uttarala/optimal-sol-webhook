@@ -27,7 +27,7 @@ export interface IDataRepository {
   countDocs(collection: string, filters?: QueryFilter[]): Promise<number>;
   acquireProcessingLock(dedupeKey: string, eventId: string | null, ttlSeconds: number): Promise<{ acquired: boolean; lockId: string }>;
   releaseProcessingLock(lockId: string, status: "completed" | "failed"): Promise<void>;
-  verifyApiClientSecret(type: "postman" | "unifi" | "internal", secret: string, route: string): Promise<boolean>;
+  verifyApiClientSecret(type: "postman" | "unifi" | "internal" | "lpr", secret: string, route: string): Promise<boolean>;
   getUserAccess(uid: string): Promise<{ role: string | null; lotIds: string[]; organizationIds: string[] }>;
   createAuditLog(entry: Record<string, unknown>): Promise<string>;
 }
@@ -148,7 +148,7 @@ export class FirestoreRepository implements IDataRepository {
     });
   }
 
-  async verifyApiClientSecret(type: "postman" | "unifi" | "internal", secret: string, route: string): Promise<boolean> {
+  async verifyApiClientSecret(type: "postman" | "unifi" | "internal" | "lpr", secret: string, route: string): Promise<boolean> {
     if (!secret) return false;
 
     const secretHash = hashSecret(secret);
@@ -297,7 +297,7 @@ export class InMemoryRepository implements IDataRepository {
     await this.updateDoc(COLLECTIONS.processingLocks, lockId, { status, updatedAt: new Date().toISOString() });
   }
 
-  async verifyApiClientSecret(type: "postman" | "unifi" | "internal", secret: string, route: string): Promise<boolean> {
+  async verifyApiClientSecret(type: "postman" | "unifi" | "internal" | "lpr", secret: string, route: string): Promise<boolean> {
     const clients = await this.listDocs<{ type: string; status: string; secretHash: string; allowedRoutes?: string[] }>(
       COLLECTIONS.apiClients,
       {

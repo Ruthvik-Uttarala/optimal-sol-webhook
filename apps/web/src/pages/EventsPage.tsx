@@ -10,6 +10,11 @@ import { useApiQuery } from "../hooks/useApiQuery";
 import { useToast } from "../components/Toast";
 import { useSessionStore } from "../store/useSessionStore";
 
+function formatConfidence(value: unknown) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "-";
+  return value.toFixed(2);
+}
+
 export function EventsPage() {
   const [query, setQuery] = useState("");
   const currentLotId = useSessionStore((state) => state.currentLotId);
@@ -43,21 +48,36 @@ export function EventsPage() {
         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by plate or event ID" />
         <Button onClick={() => setQuery("")}>Clear</Button>
       </FilterBar>
-      <Card>
-        <Table
-          headers={["Timestamp", "Plate", "Source", "Direction", "Confidence", "Processing", "Decision", "Violation", "Actions"]}
-          rows={rows.map((row) => [
-            String(row.capturedAt || "-"),
-            <Link to={`/vehicles/${row.normalizedPlate}`}>{String(row.normalizedPlate || "-")}</Link>,
-            <span>{String(row.cameraLabel || row.sourceId || "-")}</span>,
-            String(row.sourceDirection || "-"),
-            String(row.plateConfidence ?? "-"),
-            String(row.processingStatus || "-"),
-            <Badge
-              label={String(row.decisionStatus || "-")}
-              tone={row.decisionStatus === "paid" ? "paid" : row.decisionStatus === "unpaid" ? "unpaid" : "pending"}
-            />,
-            row.violationId ? <Link to={`/violations/${row.violationId}`}>Open</Link> : "-",
+        <Card>
+          <Table
+            headers={["Timestamp", "Plate", "Source", "Direction", "Confidence", "Processing", "Decision", "Violation", "Actions"]}
+            rows={rows.map((row) => [
+              String(row.capturedAt || "-"),
+              <Link to={`/vehicles/${row.normalizedPlate}`}>{String(row.normalizedPlate || "-")}</Link>,
+              <div style={{ display: "grid", gap: 4 }}>
+                <strong>{String(row.cameraLabel || row.cameraName || row.sourceName || row.sourceId || "-")}</strong>
+                <span style={{ color: "var(--text-secondary)" }}>
+                  {String(row.sourceType || "unknown")}
+                  {row.cameraId ? ` • ${String(row.cameraId)}` : ""}
+                </span>
+              </div>,
+              String(row.sourceDirection || "-"),
+              <div style={{ display: "grid", gap: 4 }}>
+                <span>OCR {formatConfidence(row.plateConfidence)}</span>
+                <span style={{ color: "var(--text-secondary)" }}>Detector {formatConfidence(row.detectorConfidence)}</span>
+              </div>,
+              <div style={{ display: "grid", gap: 4 }}>
+                <span>{String(row.processingStatus || "-")}</span>
+                <span style={{ color: "var(--text-secondary)" }}>
+                  Consensus {String(row.frameConsensusCount ?? "-")}
+                  {typeof row.evidenceCount === "number" ? ` • Evidence ${String(row.evidenceCount)}` : ""}
+                </span>
+              </div>,
+              <Badge
+                label={row.manualReviewRequired ? `${String(row.decisionStatus || "-")} review` : String(row.decisionStatus || "-")}
+                tone={row.decisionStatus === "paid" ? "paid" : row.decisionStatus === "unpaid" ? "unpaid" : "pending"}
+              />,
+              row.violationId ? <Link to={`/violations/${row.violationId}`}>Open</Link> : "-",
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Link className="input" to={`/events/${row.id}`}>View</Link>
               <Button

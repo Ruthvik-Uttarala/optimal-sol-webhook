@@ -2,6 +2,7 @@ import { defineSecret } from "firebase-functions/params";
 import { TEST_RETENTION_DAYS_DEFAULT } from "./constants";
 
 export const POSTMAN_CLIENT_SECRET_PARAM = defineSecret("POSTMAN_CLIENT_SECRET");
+export const LPR_CLIENT_SECRET_PARAM = defineSecret("LPR_CLIENT_SECRET");
 export const INTERNAL_TEST_KEY_PARAM = defineSecret("INTERNAL_TEST_KEY");
 
 function readNumber(value: string | undefined, fallback: number): number {
@@ -34,6 +35,16 @@ export function getPostmanClientSecret(): string {
     return POSTMAN_CLIENT_SECRET_PARAM.value();
   } catch {
     return "";
+  }
+}
+
+export function getLprClientSecret(): string {
+  const fromEnv = process.env.LPR_CLIENT_SECRET;
+  if (fromEnv) return fromEnv;
+  try {
+    return LPR_CLIENT_SECRET_PARAM.value();
+  } catch {
+    return getPostmanClientSecret();
   }
 }
 

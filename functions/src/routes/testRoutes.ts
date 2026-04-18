@@ -6,5 +6,6 @@ export function buildTestRoutes(controller: ReturnTypeWithoutNew<typeof import("
   router.post("/test/seed-payment", controller.seedPayment);
   router.post("/test/seed-permit", controller.seedPermit);
   router.post("/test/reset-lot", controller.resetLot);
+  router.post("/test/demo-cleanup", controller.cleanupDemoSession);
   return router;
 }

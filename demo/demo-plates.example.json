@@ -1,0 +1,28 @@
+{
+  "organizationId": "org_demo_001",
+  "lotId": "lot_demo_001",
+  "demoSessionId": "demo-20260416-main",
+  "source": {
+    "name": "Laptop Webcam Demo",
+    "sourceKey": "lpr-webcam-demo",
+    "cameraLabel": "Laptop Webcam Demo",
+    "cameraName": "laptop-webcam-01",
+    "cameraId": "cam_laptop_01"
+  },
+  "paidPlate": {
+    "plate": "PAID123",
+    "validFrom": "2026-04-16T15:00:00.000Z",
+    "validUntil": "2026-04-16T18:00:00.000Z",
+    "paymentType": "manual_override"
+  },
+  "permitPlate": {
+    "plate": "PERM123",
+    "validFrom": "2026-04-16T15:00:00.000Z",
+    "validUntil": "2026-04-16T18:00:00.000Z",
+    "permitType": "allowlist"
+  },
+  "unpaidPlate": {
+    "plate": "UNPD123"
+  }
+}
+

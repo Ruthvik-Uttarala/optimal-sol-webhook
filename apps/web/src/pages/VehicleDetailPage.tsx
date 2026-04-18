@@ -11,6 +11,11 @@ import { useToast } from "../components/Toast";
 import { PageState } from "./common";
 import { Table } from "../components/Table";
 
+function formatConfidence(value: unknown) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "-";
+  return value.toFixed(2);
+}
+
 export function VehicleDetailPage() {
   const { plate } = useParams();
   const toast = useToast();
@@ -21,6 +26,7 @@ export function VehicleDetailPage() {
   const events = useApiQuery<Array<Record<string, unknown>>>(["vehicle-events", plate], `/vehicles/${plate}/events`);
   const violations = useApiQuery<Array<Record<string, unknown>>>(["vehicle-violations", plate], `/vehicles/${plate}/violations`);
   const sessions = useApiQuery<Array<Record<string, unknown>>>(["vehicle-sessions", plate], `/vehicles/${plate}/sessions`);
+  const latestLprEvent = (vehicle.data?.latestLprEvent as Record<string, unknown> | undefined) || null;
 
   const summaryFlags = useMemo(() => {
     const rawFlags = Array.isArray(vehicle.data?.flags) ? vehicle.data.flags : [];
@@ -59,7 +65,20 @@ export function VehicleDetailPage() {
               <div>Permit: {String(vehicle.data?.currentPermitId || "-")}</div>
               <div>Open violation: {vehicle.data?.openViolationId ? String(vehicle.data.openViolationId) : "-"}</div>
               <div>Last seen: {String(vehicle.data?.lastSeenAt || "-")}</div>
+              <div>Last source type: {String(vehicle.data?.lastSourceType || "-")}</div>
               <div>Flags: {summaryFlags || "-"}</div>
+            </div>
+          </Card>
+
+          <Card title="Latest LPR Signal">
+            <div style={{ display: "grid", gap: 8 }}>
+              <div>Camera: {String(latestLprEvent?.cameraLabel || latestLprEvent?.cameraName || "-")}</div>
+              <div>Source type: {String(latestLprEvent?.sourceType || "-")}</div>
+              <div>OCR confidence: {formatConfidence(latestLprEvent?.plateConfidence)}</div>
+              <div>Detector confidence: {formatConfidence(latestLprEvent?.detectorConfidence)}</div>
+              <div>Consensus frames: {String(latestLprEvent?.frameConsensusCount ?? "-")}</div>
+              <div>Manual review: {String(Boolean(latestLprEvent?.manualReviewRequired))}</div>
+              <div>Demo session: {String(latestLprEvent?.demoSessionId || "-")}</div>
             </div>
           </Card>
 
@@ -74,14 +93,22 @@ export function VehicleDetailPage() {
 
         <Card title="Recent Events">
           <Table
-            headers={["Event", "Captured", "Decision", "Violation"]}
+            headers={["Event", "Captured", "Source", "Decision", "Confidence", "Violation"]}
             rows={(events.data || []).map((row) => [
               String(row.id || "-"),
               String(row.capturedAt || "-"),
+              <div style={{ display: "grid", gap: 4 }}>
+                <span>{String(row.cameraLabel || row.cameraName || row.sourceType || "-")}</span>
+                <span style={{ color: "var(--text-secondary)" }}>{String(row.sourceType || "-")}</span>
+              </div>,
               <Badge
                 label={String(row.decisionStatus || "-")}
                 tone={row.decisionStatus === "paid" ? "paid" : row.decisionStatus === "unpaid" ? "unpaid" : "pending"}
               />,
+              <div style={{ display: "grid", gap: 4 }}>
+                <span>OCR {formatConfidence(row.plateConfidence)}</span>
+                <span style={{ color: "var(--text-secondary)" }}>Detector {formatConfidence(row.detectorConfidence)}</span>
+              </div>,
               String(row.violationId || "-")
             ])}
           />
@@ -113,6 +140,7 @@ export function VehicleDetailPage() {
             <div>Notes summary: {String(vehicle.data?.notesSummary || "-")}</div>
             <div>Flags: {summaryFlags || "-"}</div>
             <div>Duplicate count: {String(vehicle.data?.duplicateCountRecent || 0)}</div>
+            <div>Latest evidence refs: {Array.isArray(latestLprEvent?.evidenceRefs) ? latestLprEvent.evidenceRefs.length : 0}</div>
           </div>
         </Card>
       </div>

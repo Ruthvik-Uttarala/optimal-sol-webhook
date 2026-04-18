@@ -166,12 +166,14 @@ export async function loadScopedDocByPlate<T extends Record<string, unknown>>(
 ): Promise<T | null> {
   const docs = await repo.listDocs<T & { id?: string }>(collection, {
     filters: [["normalizedPlate", "==", normalizedPlate]],
-    orderBy: "updatedAt",
-    direction: "desc",
     limit: 100
   });
 
-  for (const doc of docs) {
+  const sortedDocs = [...docs].sort((left, right) =>
+    String(right["updatedAt"] || "").localeCompare(String(left["updatedAt"] || ""))
+  );
+
+  for (const doc of sortedDocs) {
     const lotId = typeof doc["lotId"] === "string" ? (doc["lotId"] as string) : null;
     if (hasSuperAdminAccess(authContext) || canAccessLot(authContext, lotId)) {
       return doc;

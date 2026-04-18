@@ -3,7 +3,7 @@ import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { COLLECTIONS, ERROR_CODES } from "../config/constants";
 import { env } from "../config/env";
-import type { EventPayload, EventProcessResult, NormalizedEvent } from "../types/domain";
+import type { EventEvidenceRef, EventPayload, EventProcessResult, EventSourceType, NormalizedEvent } from "../types/domain";
 import type { IDataRepository } from "../repositories/firestoreRepository";
 import { normalizePlate, hashPayload } from "../utils/normalize";
 import { AppError } from "../utils/errors";
@@ -16,7 +16,7 @@ dayjs.extend(timezone);
 
 interface ProcessOptions {
   actorUserId: string | null;
-  via: "postman" | "unifi" | "manual";
+  via: "postman" | "unifi" | "manual" | "lpr";
   requestId: string;
 }
 
@@ -95,9 +95,48 @@ function toIso(value: string): string {
   return d.toISOString();
 }
 
-function dedupeKeyFor(sourceId: string, payload: EventPayload, normalizedPlate: string): string {
+function normalizeSourceType(value: unknown, fallback: EventSourceType): EventSourceType {
+  if (value === "local_lpr") return "webcam_lpr";
+  if (
+    value === "postman" ||
+    value === "unifi_webhook" ||
+    value === "manual" ||
+    value === "import" ||
+    value === "webcam_lpr"
+  ) {
+    return value;
+  }
+  return fallback;
+}
+
+function fallbackSourceType(via: ProcessOptions["via"]): EventSourceType {
+  if (via === "unifi") return "unifi_webhook";
+  if (via === "manual") return "manual";
+  if (via === "lpr") return "webcam_lpr";
+  return "postman";
+}
+
+function normalizeEvidenceRefs(value: EventPayload["evidenceRefs"]): EventEvidenceRef[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => ({
+      kind: item?.kind || null,
+      label: item?.label || null,
+      path: item?.path || null,
+      url: item?.url || null,
+      contentType: item?.contentType || null,
+      capturedAt: item?.capturedAt || null,
+      metadata: item?.metadata || {}
+    }))
+    .filter((item) => item.path || item.url || item.label || item.kind);
+}
+
+function dedupeKeyFor(sourceId: string, payload: EventPayload, normalizedPlate: string, sourceType: EventSourceType): string {
   const minute = dayjs(payload.capturedAt).utc().format("YYYY-MM-DDTHH:mm");
-  const external = payload.externalEventId || "na";
+  const external =
+    sourceType === "webcam_lpr"
+      ? "lpr"
+      : payload.externalEventId || "na";
   const direction = payload.direction || payload.eventType || "unknown";
   return `${sourceId}|${external}|${normalizedPlate}|${direction}|${minute}`;
 }
@@ -143,7 +182,16 @@ export async function processIncomingEvent(
   const normalizedPlate = normalizePlate(payload.plate);
   const capturedAtIso = toIso(payload.capturedAt);
 
-  const sources = await repo.listDocs<{ id: string; sourceKey: string; status: string; lotId: string; organizationId: string }>(
+  const sources = await repo.listDocs<{
+    id: string;
+    sourceKey: string;
+    status: string;
+    lotId: string;
+    organizationId: string;
+    type?: EventSourceType;
+    cameraLabel?: string | null;
+    metadata?: Record<string, unknown>;
+  }>(
     COLLECTIONS.sources,
     {
       filters: [
@@ -167,19 +215,47 @@ export async function processIncomingEvent(
     throw new AppError(404, ERROR_CODES.LOT_INACTIVE, "Lot not active");
   }
 
+  const sourceType = normalizeSourceType(payload.sourceType || source.type, fallbackSourceType(options.via));
+  const sourceMetadata = (source.metadata || {}) as Record<string, unknown>;
+  const evidenceRefs = normalizeEvidenceRefs(payload.evidenceRefs);
+  const recognitionMetadata = payload.recognitionMetadata || null;
+  const lprModelInfo = payload.lprModelInfo || null;
+  const webhookDelivery = payload.webhookDelivery || null;
+  const manualReviewRequired = payload.manualReviewRequired === true;
+  const demoMode = payload.demoMode === true;
+
   const normalized: NormalizedEvent = {
     organizationId: source.organizationId,
     lotId: source.lotId,
     sourceId: source.id,
+    sourceType,
     externalEventId: payload.externalEventId || null,
+    localEventId: payload.localEventId || null,
+    eventSource: payload.eventSource || null,
     eventType: payload.eventType || "unknown",
     sourceDirection: payload.direction || "unknown",
     plate: payload.plate,
     normalizedPlate,
     plateConfidence: payload.plateConfidence ?? null,
+    detectorConfidence: payload.detectorConfidence ?? null,
+    cameraLabel:
+      payload.cameraLabel ||
+      source.cameraLabel ||
+      (typeof sourceMetadata.cameraLabel === "string" ? sourceMetadata.cameraLabel : null),
+    cameraName: payload.cameraName || (typeof sourceMetadata.cameraName === "string" ? sourceMetadata.cameraName : null),
+    cameraId: payload.cameraId || (typeof sourceMetadata.cameraId === "string" ? sourceMetadata.cameraId : null),
+    frameConsensusCount: payload.frameConsensusCount ?? null,
+    evidenceRefs,
+    recognitionMetadata,
+    lprModelInfo,
+    webhookDelivery,
+    manualReviewRequired,
+    demoSessionId: payload.demoSessionId || null,
+    demoMode,
+    sessionKey: payload.sessionKey || null,
     capturedAt: capturedAtIso,
     receivedAt: receivedAtIso,
-    isTestEvent: options.via !== "unifi"
+    isTestEvent: options.via === "unifi" ? false : options.via === "lpr" ? demoMode : true
   };
 
   const rules = await repo.listDocs<ActiveRule>(COLLECTIONS.rules, {
@@ -199,7 +275,7 @@ export async function processIncomingEvent(
       env.defaultDuplicateWindowSeconds
     ) || env.defaultDuplicateWindowSeconds;
 
-  const dedupeKey = dedupeKeyFor(source.id, payload, normalizedPlate);
+  const dedupeKey = dedupeKeyFor(source.id, payload, normalizedPlate, sourceType);
   const lock = await repo.acquireProcessingLock(dedupeKey, payload.externalEventId || null, duplicateWindowSeconds);
   if (!lock.acquired) {
     throw new AppError(409, ERROR_CODES.PROCESSING_LOCK_EXISTS, "Processing lock already exists");
@@ -216,7 +292,10 @@ export async function processIncomingEvent(
         organizationId: normalized.organizationId,
         lotId: normalized.lotId,
         sourceId: normalized.sourceId,
+        sourceType: normalized.sourceType,
         externalEventId: normalized.externalEventId,
+        localEventId: normalized.localEventId,
+        eventSource: normalized.eventSource,
         rawPayloadHash: hashPayload(payload),
         rawPayload: payload,
         eventType: normalized.eventType,
@@ -224,6 +303,19 @@ export async function processIncomingEvent(
         plate: payload.plate,
         normalizedPlate,
         plateConfidence: normalized.plateConfidence,
+        detectorConfidence: normalized.detectorConfidence,
+        cameraLabel: normalized.cameraLabel,
+        cameraName: normalized.cameraName,
+        cameraId: normalized.cameraId,
+        frameConsensusCount: normalized.frameConsensusCount,
+        evidenceRefs: normalized.evidenceRefs,
+        recognitionMetadata: normalized.recognitionMetadata,
+        lprModelInfo: normalized.lprModelInfo,
+        webhookDelivery: normalized.webhookDelivery,
+        manualReviewRequired: normalized.manualReviewRequired,
+        demoSessionId: normalized.demoSessionId,
+        demoMode: normalized.demoMode,
+        sessionKey: normalized.sessionKey,
         capturedAt: normalized.capturedAt,
         receivedAt: normalized.receivedAt,
         processedAt: null,
@@ -355,6 +447,9 @@ export async function processIncomingEvent(
     if (duplicate) {
       decisionStatus = "duplicate";
       reasonCodes.push("duplicate_suppressed");
+    } else if (normalized.manualReviewRequired) {
+      decisionStatus = "pending_review";
+      reasonCodes.push("manual_review_requested");
     } else if (activePermits.length > 0) {
       decisionStatus = "exempt";
       reasonCodes.push("permit_active");
@@ -415,7 +510,7 @@ export async function processIncomingEvent(
           triggerEventId: eventId,
           vehicleStateId,
           parkingSessionId: sessionId,
-          evidenceRefs: [],
+          evidenceRefs: normalized.evidenceRefs,
           assignedToUserId: null,
           acknowledgedAt: null,
           resolvedAt: null,
@@ -437,11 +532,12 @@ export async function processIncomingEvent(
       const accessRows = await repo.listDocs<{ userId: string; lotId: string; status: string; roleWithinLot?: string | null }>(
         COLLECTIONS.userLotAccess,
         {
-        filters: [
-          ["lotId", "==", normalized.lotId],
-          ["status", "==", "active"]
-        ]
-      });
+          filters: [
+            ["lotId", "==", normalized.lotId],
+            ["status", "==", "active"]
+          ]
+        }
+      );
       const allowedRoles = resolveNotificationRoles(rules);
 
       for (const access of accessRows) {
@@ -513,9 +609,31 @@ export async function processIncomingEvent(
             ? normalized.capturedAt
             : (currentVehicle?.lastExitAt as string | null) || null,
         lastSourceId: normalized.sourceId,
+        lastSourceType: normalized.sourceType,
         duplicateCountRecent: duplicate ? ((currentVehicle?.duplicateCountRecent as number) || 0) + 1 : currentVehicle?.duplicateCountRecent || 0,
         flags: (currentVehicle?.flags as string[]) || [],
         notesSummary: (currentVehicle?.notesSummary as string | null) || null,
+        latestLprEvent:
+          normalized.sourceType === "webcam_lpr"
+            ? {
+                eventId,
+                sourceType: normalized.sourceType,
+                cameraLabel: normalized.cameraLabel,
+                cameraName: normalized.cameraName,
+                cameraId: normalized.cameraId,
+                plateConfidence: normalized.plateConfidence,
+                detectorConfidence: normalized.detectorConfidence,
+                frameConsensusCount: normalized.frameConsensusCount,
+                manualReviewRequired: normalized.manualReviewRequired,
+                evidenceRefs: normalized.evidenceRefs,
+                webhookDelivery: normalized.webhookDelivery,
+                lprModelInfo: normalized.lprModelInfo,
+                recognitionMetadata: normalized.recognitionMetadata,
+                demoSessionId: normalized.demoSessionId,
+                demoMode: normalized.demoMode,
+                capturedAt: normalized.capturedAt
+              }
+            : (currentVehicle?.latestLprEvent as Record<string, unknown> | null) || null,
         createdAt: currentVehicle?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       },
@@ -552,7 +670,9 @@ export async function processIncomingEvent(
         decisionStatus,
         processingStatus,
         violationId,
-        notificationIds
+        notificationIds,
+        sourceType: normalized.sourceType,
+        manualReviewRequired: normalized.manualReviewRequired
       },
       requestId: options.requestId,
       createdAt: new Date().toISOString()

@@ -78,3 +78,17 @@ functions/lib/
 emulator-data/_last/
 
 .vercel
+lpr/.venv/
+lpr/.cache/
+lpr/models/
+lpr/__pycache__/
+demo/runtime/
+demo/**/*.local.json
+
+_pdf_extract/
+auth-users.json
+console.log(j.idToken
+demo/*.local.json
+demo/prod.local.env
+__pycache__/
+*.pyc

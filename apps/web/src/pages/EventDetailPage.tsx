@@ -15,6 +15,11 @@ function TimelineRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function formatConfidence(value: unknown) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "-";
+  return value.toFixed(2);
+}
+
 export function EventDetailPage() {
   const params = useParams();
   const role = useSessionStore((state) => state.user?.role);
@@ -51,6 +56,7 @@ export function EventDetailPage() {
             <div style={{ display: "grid", gap: 8 }}>
               <div>Plate: <strong>{String(event.data?.normalizedPlate || "-")}</strong></div>
               <div>Source: {String(event.data?.sourceName || event.data?.cameraLabel || event.data?.sourceId || "-")}</div>
+              <div>Source type: {String(event.data?.sourceType || "-")}</div>
               <div>Lot: {String(event.data?.lotId || "-")}</div>
               <div>Direction: {String(event.data?.sourceDirection || "-")}</div>
               <div>Type: {String(event.data?.eventType || "-")}</div>
@@ -74,19 +80,62 @@ export function EventDetailPage() {
           <Card title="Processing Detail">
             <div style={{ display: "grid", gap: 8 }}>
               <div>External event: {String(event.data?.externalEventId || "-")}</div>
-              <div>Confidence: {String(event.data?.plateConfidence ?? "-")}</div>
+              <div>Local event: {String(event.data?.localEventId || "-")}</div>
+              <div>OCR confidence: {formatConfidence(event.data?.plateConfidence)}</div>
+              <div>Detector confidence: {formatConfidence(event.data?.detectorConfidence)}</div>
+              <div>Consensus frames: {String(event.data?.frameConsensusCount ?? "-")}</div>
               <div>Active payment: {String(event.data?.activePaymentId || "-")}</div>
               <div>Active permit: {String(event.data?.activePermitId || "-")}</div>
               <div>Dedupe key: {String(event.data?.dedupeKey || "-")}</div>
             </div>
           </Card>
-          <Card title="Payload Summary">
+          <Card title="LPR Metadata">
             <div style={{ display: "grid", gap: 8 }}>
               <div>Camera: {String(event.data?.cameraLabel || "-")}</div>
+              <div>Camera name: {String(event.data?.cameraName || "-")}</div>
+              <div>Camera ID: {String(event.data?.cameraId || "-")}</div>
+              <div>Manual review required: {String(Boolean(event.data?.manualReviewRequired))}</div>
+              <div>Demo session: {String(event.data?.demoSessionId || "-")}</div>
+              <div>Demo mode: {String(Boolean(event.data?.demoMode))}</div>
+              <div>Webhook delivery: {String((event.data?.webhookDelivery as Record<string, unknown> | undefined)?.status || "-")}</div>
               <div>Request hash: {String(debug.rawPayloadHash || "-")}</div>
               <div>Error code: {String(debug.errorCode || "-")}</div>
               <div>Error message: {String(debug.errorMessage || "-")}</div>
             </div>
+          </Card>
+        </div>
+
+        <div className="grid-cards" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+          <Card title="Evidence">
+            {Array.isArray(event.data?.evidenceRefs) && event.data.evidenceRefs.length ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                {event.data.evidenceRefs.map((ref, index) => {
+                  const item = ref as Record<string, unknown>;
+                  return (
+                    <div key={`${String(item.path || item.url || item.label || "evidence")}-${index}`} className="input" style={{ display: "grid", gap: 4 }}>
+                      <strong>{String(item.label || item.kind || `Evidence ${index + 1}`)}</strong>
+                      <span>{String(item.path || item.url || "-")}</span>
+                      <span style={{ color: "var(--text-secondary)" }}>{String(item.contentType || item.capturedAt || "-")}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div>No evidence stored for this event.</div>
+            )}
+          </Card>
+          <Card title="Recognition Metadata">
+            <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+              {JSON.stringify(
+                {
+                  recognitionMetadata: event.data?.recognitionMetadata || null,
+                  lprModelInfo: event.data?.lprModelInfo || null,
+                  webhookDelivery: event.data?.webhookDelivery || null
+                },
+                null,
+                2
+              )}
+            </pre>
           </Card>
         </div>
 

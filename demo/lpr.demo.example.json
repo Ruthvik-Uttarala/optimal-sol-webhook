@@ -1,0 +1,52 @@
+{
+  "source_key": "lpr-webcam-demo",
+  "camera_name": "laptop-webcam-01",
+  "camera_label": "Laptop Webcam Demo",
+  "camera_id": "cam_laptop_01",
+  "demo_mode": true,
+  "capture": {
+    "mode": "webcam",
+    "device_index": 0,
+    "width": 1280,
+    "height": 720,
+    "fps": 15,
+    "frame_skip": 1,
+    "preview": false
+  },
+  "consensus": {
+    "window_seconds": 2.0,
+    "min_agree": 3,
+    "min_detector_confidence": 0.45,
+    "min_ocr_confidence": 0.55,
+    "emit_confidence": 0.78,
+    "pending_review_confidence": 0.65,
+    "emit_pending_review": false,
+    "cooldown_seconds": 20,
+    "min_plate_length": 5,
+    "max_plate_length": 10
+  },
+  "detector": {
+    "repo_id": "yasirfaizahmed/license-plate-object-detection",
+    "revision": "2632bbf",
+    "filename": "best.pt",
+    "sha256": "d06657407970f80f1a12eb9f340661ecd003bbe44ff8feac3d5bc38845f11a94",
+    "image_size": 640,
+    "max_detections": 3
+  },
+  "ocr": {
+    "languages": ["en"],
+    "gpu": false,
+    "allowlist": "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  },
+  "webhook": {
+    "base_url": "",
+    "path": "/api/v1/webhooks/lpr/events",
+    "api_client_secret_env": "PARKINGSOL_LPR_SECRET",
+    "timeout_seconds": 10
+  },
+  "evidence": {
+    "enabled": true,
+    "directory": "demo/runtime/evidence",
+    "jpeg_quality": 92
+  }
+}

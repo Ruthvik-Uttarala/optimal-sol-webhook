@@ -17,6 +17,7 @@ import {
   createUserSchema,
   dismissViolationSchema,
   ingestPayloadSchema,
+  lprIngestPayloadSchema,
   patchVehicleFlagsSchema,
   patchSystemConfigSchema,
   resolveViolationSchema,
@@ -104,6 +105,7 @@ export function buildApp(repo: IDataRepository = createRepository("firestore")) 
   const publicEventsRouter = express.Router();
   publicEventsRouter.post("/webhooks/postman/events", validateBody(ingestPayloadSchema), eventsController.ingestPostman);
   publicEventsRouter.post("/webhooks/unifi/events", eventsController.ingestUnifi);
+  publicEventsRouter.post("/webhooks/lpr/events", validateBody(lprIngestPayloadSchema), eventsController.ingestLpr);
   app.use("/api/v1", publicEventsRouter);
 
   const selfServiceRouter = express.Router();

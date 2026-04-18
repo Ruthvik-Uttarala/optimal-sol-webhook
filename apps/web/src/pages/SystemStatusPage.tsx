@@ -60,6 +60,18 @@ export function SystemStatusPage() {
             <div>Unread alerts: {String(status.data?.unreadNotificationCount || 0)}</div>
           </div>
         </Card>
+        <Card title="LPR Status">
+          <div style={{ display: "grid", gap: 8 }}>
+            <div>Last LPR event: {String(status.data?.lastLprEventReceived || "-")}</div>
+            <div>Last plate: {String(status.data?.lastLprPlate || "-")}</div>
+            <div>Camera: {String(status.data?.lastLprCamera || "-")}</div>
+            <div>Decision: {String(status.data?.lastLprDecision || "-")}</div>
+            <div>OCR confidence: {String(status.data?.lastLprConfidence ?? "-")}</div>
+            <div>Detector confidence: {String(status.data?.lastLprDetectorConfidence ?? "-")}</div>
+            <div>Consensus frames: {String(status.data?.lastLprConsensusCount ?? "-")}</div>
+            <div>Webhook status: {String(status.data?.lastLprWebhookStatus || "-")}</div>
+          </div>
+        </Card>
         <Card title="Configuration">
           {renderConfigCards(config.data)}
         </Card>

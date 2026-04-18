@@ -33,6 +33,23 @@
       ]
     },
     {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sourceType", "order": "ASCENDING" },
+        { "fieldPath": "capturedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lotId", "order": "ASCENDING" },
+        { "fieldPath": "sourceType", "order": "ASCENDING" },
+        { "fieldPath": "capturedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "violations",
       "queryScope": "COLLECTION",
       "fields": [
@@ -45,6 +62,15 @@
       "collectionGroup": "violations",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "normalizedPlate", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "violations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lotId", "order": "ASCENDING" },
         { "fieldPath": "normalizedPlate", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
@@ -86,6 +112,23 @@
       ]
     },
     {
+      "collectionGroup": "sources",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lotId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sources",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lotId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "rules",
       "queryScope": "COLLECTION",
       "fields": [
@@ -101,6 +144,44 @@
         { "fieldPath": "lotId", "order": "ASCENDING" },
         { "fieldPath": "normalizedPlate", "order": "ASCENDING" },
         { "fieldPath": "openedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "parkingSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lotId", "order": "ASCENDING" },
+        { "fieldPath": "normalizedPlate", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "openedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "parkingEntries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "plateNumber", "order": "ASCENDING" },
+        { "fieldPath": "entrytime", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "parkingEntries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "plateNumber", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "display_name", "order": "ASCENDING" },
+        { "fieldPath": "startDate", "order": "ASCENDING" },
+        { "fieldPath": "endDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "parkingEntries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "carNumber", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "entryTime", "order": "DESCENDING" }
       ]
     }
   ],

@@ -70,7 +70,7 @@ function buildScopedAccessContext(lotIds: string[]) {
 }
 
 export async function getSystemStatus(repo: IDataRepository, lotIds: string[] = []) {
-  const [lastEvent] = await listAcrossLots<{
+  const recentEvents = await listAcrossLots<{
     id: string;
     processedAt?: string;
     processingStatus?: string;
@@ -78,30 +78,26 @@ export async function getSystemStatus(repo: IDataRepository, lotIds: string[] = 
     decisionStatus?: string;
     sourceId?: string;
     lotId?: string;
+    normalizedPlate?: string;
+    cameraLabel?: string | null;
+    cameraName?: string | null;
+    plateConfidence?: number | null;
+    detectorConfidence?: number | null;
+    frameConsensusCount?: number | null;
+    sourceType?: string;
+    webhookDelivery?: Record<string, unknown> | null;
+    errorCode?: string;
+    errorMessage?: string;
   }>(repo, COLLECTIONS.events, lotIds, {
     orderBy: "capturedAt",
     direction: "desc",
-    limit: 1
+    limit: 50
   });
 
-  const [lastSuccess] = await listAcrossLots<{ id: string; processedAt?: string; capturedAt?: string }>(repo, COLLECTIONS.events, lotIds, {
-    filters: [["processingStatus", "==", "processed"]],
-    orderBy: "processedAt",
-    direction: "desc",
-    limit: 1
-  });
-
-  const [lastFailure] = await listAcrossLots<{ id: string; processedAt?: string; capturedAt?: string; errorCode?: string; errorMessage?: string }>(
-    repo,
-    COLLECTIONS.events,
-    lotIds,
-    {
-      filters: [["processingStatus", "==", "failed"]],
-      orderBy: "processedAt",
-      direction: "desc",
-      limit: 1
-    }
-  );
+  const [lastEvent] = recentEvents;
+  const lastSuccess = recentEvents.find((event) => event.processingStatus === "processed");
+  const lastFailure = recentEvents.find((event) => event.processingStatus === "failed");
+  const lastLprEvent = recentEvents.find((event) => event.sourceType === "webcam_lpr");
 
   const [activeSourceCount, unreadNotificationCount] = await Promise.all([
     countAcrossLots(repo, COLLECTIONS.sources, lotIds, [["status", "==", "active"]]),
@@ -118,6 +114,20 @@ export async function getSystemStatus(repo: IDataRepository, lotIds: string[] = 
     lastFailedProcessingTime: lastFailure?.processedAt || null,
     lastFailureCode: lastFailure?.errorCode || null,
     lastFailureMessage: lastFailure?.errorMessage || null,
+    lastLprEventId: lastLprEvent?.id || null,
+    lastLprEventReceived: lastLprEvent?.capturedAt || null,
+    lastLprPlate: lastLprEvent?.normalizedPlate || null,
+    lastLprCamera: lastLprEvent?.cameraLabel || lastLprEvent?.cameraName || null,
+    lastLprConfidence: lastLprEvent?.plateConfidence ?? null,
+    lastLprDetectorConfidence: lastLprEvent?.detectorConfidence ?? null,
+    lastLprConsensusCount: lastLprEvent?.frameConsensusCount ?? null,
+    lastLprDecision: lastLprEvent?.decisionStatus || null,
+    lastLprWebhookStatus:
+      typeof lastLprEvent?.webhookDelivery?.status === "string"
+        ? lastLprEvent.webhookDelivery.status
+        : lastLprEvent
+          ? "received"
+          : null,
     firestoreState: "connected",
     notificationState: "connected",
     deploymentEnvironment: process.env.ENV_LABEL || "Test",

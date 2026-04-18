@@ -10,12 +10,13 @@ export function createSourcesController(repo: IDataRepository) {
       const filters: [string, FirebaseFirestore.WhereFilterOp, unknown][] = [];
       if (req.query.lotId) filters.push(["lotId", "==", req.query.lotId]);
       if (req.query.status) filters.push(["status", "==", req.query.status]);
-      const rows = await repo.listDocs(COLLECTIONS.sources, {
-        filters,
-        orderBy: "createdAt",
-        direction: "desc"
+      const rows = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.sources, {
+        filters
       });
-      sendSuccess(res, rows);
+      const sortedRows = [...rows].sort((left, right) =>
+        String(right.createdAt || "").localeCompare(String(left.createdAt || ""))
+      );
+      sendSuccess(res, sortedRows);
     },
 
     get: async (req: Request, res: Response): Promise<void> => {
@@ -35,8 +36,11 @@ export function createSourcesController(repo: IDataRepository) {
         status: req.body.status,
         directionMode: req.body.directionMode,
         cameraLabel: req.body.cameraLabel || null,
+        cameraName: req.body.cameraName || null,
+        cameraId: req.body.cameraId || null,
         laneLabel: req.body.laneLabel || null,
         sharedSecretId: req.body.sharedSecretId || null,
+        demoMode: req.body.demoMode === true,
         metadata: req.body.metadata || {},
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

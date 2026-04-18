@@ -1,40 +1,75 @@
 # External Blockers
 
-## 1) Node runtime below locked MVP requirement
+## 1) Firebase production deploy auth is missing
 
-- Blocker: Host runtime is `Node v20.11.1` / `npm 10.2.4`; contract requires `Node 20.19.0` / `npm 10.8.2`.
-- Why external: Runtime toolchain installation is machine-level and outside repo code.
-- Required permission/value: Install/activate Node `20.19.0` (or newer compatible `22.12+`) and npm `10.8.2`.
-- Exact command or console path:
-  - Use `nvm`/`nvm-windows` or installer to switch runtime.
-  - Verify with `node -v` and `npm -v`.
-- Verification steps:
-  - Run `npm run build` and `npm run test:e2e`.
-  - Expected: Vite/Playwright web server starts without `styleText` import error.
+- Blocker: the backend cannot be deployed to Firebase `prod` (`payment-yveiv5`) from this machine because the Firebase CLI has no authorized account.
+- Evidence:
+  - Command: `npx firebase deploy --only functions,firestore:rules,firestore:indexes --project prod`
+  - Result: `Error: Failed to authenticate, have you run firebase login?`
+  - Command: `npx firebase login:list`
+  - Result: `No authorized accounts, run "firebase login"`
+- Impact:
+  - the new `POST /api/v1/webhooks/lpr/events` route is not deployed to production from this environment
+  - Firestore index changes for LPR visibility are not deployed to production from this environment
+- Exact manual step needed:
+  - run `firebase login` on this machine, or provide application default credentials with deploy access to `payment-yveiv5`
+  - then rerun:
 
-## 2) Java runtime missing for Firebase Emulator Suite
+```cmd
+npx firebase deploy --only functions,firestore:rules,firestore:indexes --project prod
+```
 
-- Blocker: `firebase emulators:start` and `firebase emulators:exec` fail with `spawn java ENOENT`.
-- Why external: Java installation/PATH configuration is machine-level dependency.
-- Required permission/value: Install Java (JRE/JDK 17+) and add to system `PATH`.
-- Exact command or console path:
-  - Install Temurin/OpenJDK.
-  - Verify with `java -version`.
-- Verification steps:
-  - Run `npm run emu:start`, `npm run emu:baseline:refresh`, and `npm run test:rules`.
-  - Expected: Firestore/Auth emulators boot and rules tests execute.
+## 2) Vercel production deploy auth is missing
 
-## 3) Cloud deployment execution (if required now)
+- Blocker: the updated frontend cannot be deployed to the live Vercel project from this machine because the Vercel CLI is not authenticated.
+- Evidence:
+  - Command: `vercel --prod --yes`
+  - Result: `Error: The specified token is not valid. Use "vercel login" to generate a new token.`
+  - Command: `vercel whoami`
+  - Result: device-login flow started and waited for manual approval
+- Impact:
+  - the LPR event metadata UI changes are not deployed to `parksol-five.vercel.app` from this environment
+- Exact manual step needed:
+  - run `vercel login` or provide a valid Vercel token for project `parksol`
+  - then rerun:
 
-- Blocker: Actual deploy run to Firebase/Vercel not completed in this environment.
-- Why external: Requires project-level deploy permissions and environment secret values.
-- Required permission/value:
-  - Firebase deploy IAM on `parking-sol-dev` / `parking-sol-staging` / `parking-sol-prod`.
-  - Vercel project access + configured env vars per `docs/SECRETS_MATRIX.md`.
-- Exact command or console path:
-  - Firebase: `firebase deploy --only functions,firestore:rules,firestore:indexes --project <alias>`
-  - Vercel: `vercel --prod` (or CI linked project deployment)
-- Verification steps:
-  - `GET /api/v1/health`
-  - Run Newman smoke
-  - Load dashboard and violations pages on deployed frontend.
+```cmd
+vercel --prod --yes
+```
+
+## 3) Production ParkingSol secrets and operator auth are not present in the shell
+
+- Blocker: the live demo seed path and the live webcam webhook path cannot run end to end against production from this shell because the required ParkingSol secrets are not set.
+- Missing values:
+  - `PARKINGSOL_LPR_SECRET`
+  - `PARKINGSOL_BEARER_TOKEN`
+  - `PARKINGSOL_INTERNAL_TEST_KEY`
+  - `PARKINGSOL_API_BASE_URL`
+- Impact:
+  - cannot seed the paid / permit demo plates on the main live lot
+  - cannot emit a live authenticated LPR webhook from the sidecar into the deployed backend
+  - cannot run `npm run demo:seed` or `npm run demo:validate` against production
+- Exact manual step needed:
+  - set those values in the same CMD session before running the demo commands
+
+```cmd
+set PARKINGSOL_API_BASE_URL=https://<your-firebase-api-base>
+set PARKINGSOL_LPR_SECRET=<lpr-client-secret-or-postman-secret>
+set PARKINGSOL_BEARER_TOKEN=<admin-or-support-firebase-id-token>
+set PARKINGSOL_INTERNAL_TEST_KEY=<internal-test-key>
+```
+
+## Verified Non-Blockers
+
+- Webcam hardware access works on this machine.
+  - Command: direct OpenCV webcam probe on April 17, 2026
+  - Result: `OPENED True`, `READ True`, `SHAPE (480, 640, 3)`
+- The live detector + OCR loop runs against webcam frames on this machine.
+  - Command: 5-frame live webcam inference probe on April 17, 2026
+  - Result: average processing time `119.34 ms/frame` on CPU, with zero plate detections because no readable plate was present in view during the automated probe
+- AWS credentials are currently available.
+  - Command: `aws sts get-caller-identity`
+  - Result: authenticated as `arn:aws:iam::025387296018:user/nova-architect-dev`
+- The current production frontend is reachable.
+  - URL: `https://parksol-five.vercel.app/`
+  - Result: HTTP `200 OK`

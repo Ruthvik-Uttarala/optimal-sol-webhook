@@ -5,6 +5,7 @@ import { InMemoryRepository } from "../repositories/firestoreRepository";
 import type { EventPayload } from "../types/domain";
 
 process.env.POSTMAN_CLIENT_SECRET = process.env.POSTMAN_CLIENT_SECRET || "test-secret";
+process.env.LPR_CLIENT_SECRET = process.env.LPR_CLIENT_SECRET || "test-secret";
 process.env.INTERNAL_TEST_KEY = process.env.INTERNAL_TEST_KEY || "internal-test";
 process.env.ALLOW_TEST_HEADERS = process.env.ALLOW_TEST_HEADERS || "true";
 
@@ -117,6 +118,22 @@ async function seedBaseData(repo: InMemoryRepository) {
     organizationId: "org_demo_001",
     lotId: "lot_demo_001",
     sourceKey: "postman-main-gate-entry",
+    type: "postman",
+    status: "active"
+  });
+
+  await repo.setDoc(COLLECTIONS.sources, "src_lpr_001", {
+    id: "src_lpr_001",
+    organizationId: "org_demo_001",
+    lotId: "lot_demo_001",
+    sourceKey: "lpr-webcam-demo",
+    type: "webcam_lpr",
+    name: "Laptop Webcam Demo",
+    cameraLabel: "Laptop Webcam Demo",
+    metadata: {
+      cameraName: "laptop-webcam-01",
+      cameraId: "cam_laptop_01"
+    },
     status: "active"
   });
 
@@ -125,6 +142,7 @@ async function seedBaseData(repo: InMemoryRepository) {
     organizationId: "org_other_001",
     lotId: "lot_other_001",
     sourceKey: "other-gate-entry",
+    type: "postman",
     status: "active"
   });
 
@@ -142,6 +160,14 @@ async function seedBaseData(repo: InMemoryRepository) {
     status: "active",
     secretHash: "9caf06bb4436cdbfa20af9121a626bc1093c4f54b31c0fa937957856135345b6",
     allowedRoutes: ["/api/v1/webhooks/unifi/events"]
+  });
+
+  await repo.setDoc(COLLECTIONS.apiClients, "client_lpr_1", {
+    id: "client_lpr_1",
+    type: "lpr",
+    status: "active",
+    secretHash: "9caf06bb4436cdbfa20af9121a626bc1093c4f54b31c0fa937957856135345b6",
+    allowedRoutes: ["/api/v1/webhooks/lpr/events"]
   });
 
   await repo.setDoc(COLLECTIONS.rules, "rule_grace_period", {
@@ -264,6 +290,48 @@ function basePayload(overrides: Partial<EventPayload> = {}): EventPayload {
     cameraLabel: "Entry Gate Camera",
     direction: "entry",
     metadata: { lane: "lane-1" },
+    ...overrides
+  };
+}
+
+function lprPayload(overrides: Partial<EventPayload> = {}): EventPayload {
+  return {
+    sourceKey: "lpr-webcam-demo",
+    externalEventId: "lpr_evt_001",
+    localEventId: "local_evt_001",
+    eventSource: "lpr",
+    sourceType: "webcam_lpr",
+    eventType: "plate_detected",
+    capturedAt: new Date().toISOString(),
+    plate: "LPR1234",
+    plateConfidence: 0.94,
+    detectorConfidence: 0.91,
+    cameraLabel: "Laptop Webcam Demo",
+    cameraName: "laptop-webcam-01",
+    cameraId: "cam_laptop_01",
+    direction: "unknown",
+    frameConsensusCount: 4,
+    evidenceRefs: [
+      {
+        kind: "frame",
+        label: "frame",
+        path: "evidence/frame-001.jpg",
+        contentType: "image/jpeg"
+      }
+    ],
+    webhookDelivery: {
+      status: "accepted",
+      durationMs: 180
+    },
+    recognitionMetadata: {
+      windowSize: 12,
+      consensusPlate: "LPR1234"
+    },
+    lprModelInfo: {
+      detector: "yolov8n-license-plate",
+      recognizer: "easyocr-crnn"
+    },
+    metadata: { source: "webcam" },
     ...overrides
   };
 }
@@ -442,6 +510,156 @@ async function main() {
       });
     assert.equal(response.status, 201);
     assert.equal(response.body.success, true);
+  });
+
+  await runCase("accepts LPR webhook events and persists LPR metadata", async () => {
+    const repo = new InMemoryRepository();
+    await seedBaseData(repo);
+    const app = buildApp(repo);
+    const response = await request(app)
+      .post("/api/v1/webhooks/lpr/events")
+      .set("x-api-client-secret", "test-secret")
+      .send(lprPayload());
+
+    assert.equal(response.status, 201);
+    assert.equal(response.body.data.decisionStatus, "unpaid");
+    const events = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.events, {
+      filters: [["sourceType", "==", "webcam_lpr"]]
+    });
+    assert.equal(events.length, 1);
+    assert.equal(events[0]?.cameraName, "laptop-webcam-01");
+    assert.equal(events[0]?.cameraId, "cam_laptop_01");
+    assert.equal(events[0]?.frameConsensusCount, 4);
+    assert.equal(Array.isArray(events[0]?.evidenceRefs), true);
+  });
+
+  await runCase("forces pending review for flagged LPR events without violations", async () => {
+    const repo = new InMemoryRepository();
+    await seedBaseData(repo);
+    const result = await processIncomingEvent(
+      repo,
+      lprPayload({
+        externalEventId: "lpr_evt_review_001",
+        plate: "REV1234",
+        manualReviewRequired: true,
+        demoSessionId: "demo_review_001"
+      }),
+      {
+        actorUserId: null,
+        via: "lpr",
+        requestId: "req_lpr_review"
+      }
+    );
+
+    assert.equal(result.decisionStatus, "pending_review");
+    assert.equal(result.violationId, null);
+    const events = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.events, {
+      filters: [["normalizedPlate", "==", "REV1234"]]
+    });
+    assert.equal(events[0]?.manualReviewRequired, true);
+    const notifications = await repo.listDocs(COLLECTIONS.notifications);
+    assert.equal(notifications.length, 0);
+  });
+
+  await runCase("suppresses duplicate LPR reads across unique external ids in the same minute", async () => {
+    const repo = new InMemoryRepository();
+    await seedBaseData(repo);
+    const capturedAt = new Date().toISOString();
+    const first = await processIncomingEvent(
+      repo,
+      lprPayload({
+        externalEventId: "lpr_dup_001",
+        plate: "DUPLPR1",
+        capturedAt
+      }),
+      {
+        actorUserId: null,
+        via: "lpr",
+        requestId: "req_lpr_dup_1"
+      }
+    );
+    const second = await processIncomingEvent(
+      repo,
+      lprPayload({
+        externalEventId: "lpr_dup_002",
+        localEventId: "local_evt_002",
+        plate: "DUPLPR1",
+        capturedAt
+      }),
+      {
+        actorUserId: null,
+        via: "lpr",
+        requestId: "req_lpr_dup_2"
+      }
+    );
+
+    assert.equal(first.decisionStatus, "unpaid");
+    assert.equal(second.decisionStatus, "duplicate");
+    const violations = await repo.listDocs(COLLECTIONS.violations);
+    assert.equal(violations.length, 1);
+  });
+
+  await runCase("exposes latest LPR status through the system status endpoint", async () => {
+    const repo = new InMemoryRepository();
+    await seedBaseData(repo);
+    await processIncomingEvent(
+      repo,
+      lprPayload({
+        externalEventId: "lpr_status_001",
+        plate: "STAT123"
+      }),
+      {
+        actorUserId: null,
+        via: "lpr",
+        requestId: "req_lpr_status"
+      }
+    );
+
+    const app = buildApp(repo);
+    const response = await request(app).get("/api/v1/system/status?lotId=lot_demo_001").set(adminHeader);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.data.lastLprPlate, "STAT123");
+    assert.equal(response.body.data.lastLprCamera, "Laptop Webcam Demo");
+    assert.equal(response.body.data.lastLprWebhookStatus, "accepted");
+  });
+
+  await runCase("cleans up demo artifacts with scoped demo-session criteria", async () => {
+    const repo = new InMemoryRepository();
+    await seedBaseData(repo);
+    await processIncomingEvent(
+      repo,
+      lprPayload({
+        externalEventId: "lpr_cleanup_001",
+        plate: "CLN1234",
+        demoMode: true,
+        demoSessionId: "demo_cleanup_001"
+      }),
+      {
+        actorUserId: null,
+        via: "lpr",
+        requestId: "req_lpr_cleanup"
+      }
+    );
+
+    const app = buildApp(repo);
+    const response = await request(app)
+      .post("/api/v1/test/demo-cleanup")
+      .set(adminHeader)
+      .set("x-internal-test-key", "internal-test")
+      .send({
+        lotId: "lot_demo_001",
+        demoSessionId: "demo_cleanup_001",
+        sourceId: "src_lpr_001",
+        sourceKey: "lpr-webcam-demo",
+        plates: ["CLN1234"]
+      });
+
+    assert.equal(response.status, 200);
+    assert.ok(response.body.data.cleared > 0);
+    const remaining = await repo.listDocs<Record<string, unknown>>(COLLECTIONS.events, {
+      filters: [["normalizedPlate", "==", "CLN1234"]]
+    });
+    assert.equal(remaining.length, 0);
   });
 
   await runCase("blocks cross-lot event reads", async () => {

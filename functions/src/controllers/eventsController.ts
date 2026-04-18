@@ -4,9 +4,13 @@ import { COLLECTIONS, ERROR_CODES } from "../config/constants";
 import { sendSuccess } from "../utils/response";
 import { AppError } from "../utils/errors";
 import { processIncomingEvent, reprocessEvent } from "../services/eventProcessingService";
-import { getPostmanClientSecret } from "../config/env";
+import { getLprClientSecret, getPostmanClientSecret } from "../config/env";
 import { assertLotAccess, listScopedDocs, loadScopedDocById } from "../utils/access";
-import { ingestPayloadSchema } from "../schemas/contracts";
+import { ingestPayloadSchema, lprIngestPayloadSchema } from "../schemas/contracts";
+
+function normalizeLprSourceType(value: unknown) {
+  return value === "local_lpr" ? "webcam_lpr" : value;
+}
 
 export function createEventsController(repo: IDataRepository) {
   return {
@@ -57,6 +61,36 @@ export function createEventsController(repo: IDataRepository) {
       sendSuccess(res, result, 201);
     },
 
+    ingestLpr: async (req: Request, res: Response): Promise<void> => {
+      const secret = req.header("x-api-client-secret") || "";
+      const envSecret = getLprClientSecret();
+      const verifiedByClient = await repo.verifyApiClientSecret("lpr", secret, "/api/v1/webhooks/lpr/events");
+      if (!(verifiedByClient || (envSecret && secret === envSecret))) {
+        throw new AppError(401, ERROR_CODES.UNAUTHORIZED, "Invalid API client secret");
+      }
+
+      const mappedBody = {
+        ...req.body,
+        sourceType: normalizeLprSourceType(req.body.sourceType ?? "webcam_lpr"),
+        eventSource: req.body.eventSource || "lpr",
+        eventType: req.body.eventType || "plate_detected",
+        direction: req.body.direction || "unknown",
+        cameraLabel: req.body.cameraLabel || req.body.cameraName || null,
+        metadata: req.body.metadata || req.body.rawMetadata || {}
+      };
+      const parsed = lprIngestPayloadSchema.safeParse(mappedBody);
+      if (!parsed.success) {
+        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, parsed.error.issues[0]?.message || "Invalid LPR payload");
+      }
+
+      const result = await processIncomingEvent(repo, parsed.data, {
+        actorUserId: null,
+        via: "lpr",
+        requestId: req.context.requestId
+      });
+      sendSuccess(res, result, 201);
+    },
+
     manualEvent: async (req: Request, res: Response): Promise<void> => {
       const result = await processIncomingEvent(repo, req.body, {
         actorUserId: req.authContext?.uid || null,
@@ -90,9 +124,16 @@ export function createEventsController(repo: IDataRepository) {
         res,
         data.map((row: Record<string, unknown>) => ({
           ...row,
+          sourceType: row.sourceType || sourceMap.get(String(row.sourceId || ""))?.type || null,
           sourceName: sourceMap.get(String(row.sourceId || ""))?.name || row.sourceId || null,
-          cameraLabel: (row.rawPayload as Record<string, unknown> | undefined)?.cameraLabel || null,
+          cameraName: row.cameraName || (row.rawPayload as Record<string, unknown> | undefined)?.cameraName || null,
+          cameraId: row.cameraId || (row.rawPayload as Record<string, unknown> | undefined)?.cameraId || null,
+          cameraLabel: row.cameraLabel || (row.rawPayload as Record<string, unknown> | undefined)?.cameraLabel || null,
           confidence: row.plateConfidence ?? null,
+          detectorConfidence: row.detectorConfidence ?? null,
+          frameConsensusCount: row.frameConsensusCount ?? null,
+          manualReviewRequired: Boolean(row.manualReviewRequired),
+          evidenceCount: Array.isArray(row.evidenceRefs) ? row.evidenceRefs.length : 0,
           hasViolation: Boolean(row.violationId)
         }))
       );
@@ -112,8 +153,20 @@ export function createEventsController(repo: IDataRepository) {
 
       sendSuccess(res, {
         ...event,
+        sourceType: event.sourceType || source?.type || null,
         sourceName: source?.name || event.sourceId || null,
-        cameraLabel: (event.rawPayload as Record<string, unknown> | undefined)?.cameraLabel || null,
+        cameraLabel: event.cameraLabel || (event.rawPayload as Record<string, unknown> | undefined)?.cameraLabel || null,
+        cameraName: event.cameraName || (event.rawPayload as Record<string, unknown> | undefined)?.cameraName || null,
+        cameraId: event.cameraId || (event.rawPayload as Record<string, unknown> | undefined)?.cameraId || null,
+        detectorConfidence: event.detectorConfidence ?? null,
+        frameConsensusCount: event.frameConsensusCount ?? null,
+        manualReviewRequired: Boolean(event.manualReviewRequired),
+        evidenceRefs: event.evidenceRefs || [],
+        recognitionMetadata: event.recognitionMetadata || null,
+        lprModelInfo: event.lprModelInfo || null,
+        webhookDelivery: event.webhookDelivery || (event.sourceType === "webcam_lpr" ? { status: "received" } : null),
+        demoSessionId: event.demoSessionId || null,
+        demoMode: Boolean(event.demoMode),
         debug: {
           rawPayloadHash: event.rawPayloadHash || null,
           errorCode: event.errorCode || null,

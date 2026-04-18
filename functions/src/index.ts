@@ -5,7 +5,7 @@ import { logger } from "firebase-functions";
 import { buildApp } from "./app";
 import { createRepository } from "./repositories/firestoreRepository";
 import { cleanupTestArtifacts } from "./services/cleanupService";
-import { env, INTERNAL_TEST_KEY_PARAM, POSTMAN_CLIENT_SECRET_PARAM } from "./config/env";
+import { env, INTERNAL_TEST_KEY_PARAM, LPR_CLIENT_SECRET_PARAM, POSTMAN_CLIENT_SECRET_PARAM } from "./config/env";
 
 setGlobalOptions({
   region: "us-central1",
@@ -16,7 +16,7 @@ const app = buildApp();
 
 export const api = onRequest(
   {
-    secrets: [POSTMAN_CLIENT_SECRET_PARAM, INTERNAL_TEST_KEY_PARAM]
+    secrets: [POSTMAN_CLIENT_SECRET_PARAM, LPR_CLIENT_SECRET_PARAM, INTERNAL_TEST_KEY_PARAM]
   },
   app
 );
